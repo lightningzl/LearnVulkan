@@ -11,7 +11,16 @@ include(cmake/copydll.cmake)
 
 aux_source_directory(src SRC)
 
-add_library(toy2d STATIC ${SRC})
+add_library(toy2d STATIC 
+    # Header files
+    toy2d/context.hpp
+    toy2d/tool.hpp
+    toy2d/toy2d.hpp
+    toy2d/swapchain.hpp
+    # Source code files
+    ${SRC}
+)
+
 target_include_directories(toy2d PUBLIC .)
 target_link_libraries(toy2d PUBLIC Vulkan::Vulkan)
 target_compile_features(toy2d PUBLIC cxx_std_17)

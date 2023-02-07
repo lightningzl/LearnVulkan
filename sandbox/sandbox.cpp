@@ -19,7 +19,27 @@ int main(int argc, char** argv) {
     bool shouldClose = false;
     SDL_Event event;
 
-    toy2d::Init();
+    unsigned int count;
+    SDL_Vulkan_GetInstanceExtensions(window, &count, nullptr);
+    std::vector<const char*> extensions(count);
+    SDL_Vulkan_GetInstanceExtensions(window, &count, extensions.data());
+
+    
+
+    //for (auto& extension : extensions)
+    //{
+    //    std::cout << extension << std::endl;
+    //}
+
+    toy2d::Init(extensions,
+        [&](vk::Instance instance) {
+			VkSurfaceKHR surface;
+            if (!SDL_Vulkan_CreateSurface(window, instance, &surface))
+            {
+                throw std::runtime_error("Can't create surface");
+            }
+	        return surface;
+		}, 1024, 720);
 
     while (!shouldClose) {
         while (SDL_PollEvent(&event)) {
