@@ -49,7 +49,7 @@ namespace toy2d
 			vk::ClearValue clearValue;
 			clearValue.color = vk::ClearColorValue(std::array<float, 4>{0.1f, 0.1f, 0.1f, 0.1f});
 			area.setOffset({ 0, 0 })
-				.setExtent(swapchain->info.imageCount);
+				.setExtent(swapchain->info.imageExtent);
 			renderPassBegin.setRenderPass(renderProcess->renderPass)
 				.setRenderArea(area)
 				.setFramebuffer(swapchain->framebuffers[imageIndex])
