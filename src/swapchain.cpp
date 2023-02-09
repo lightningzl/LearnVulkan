@@ -33,10 +33,21 @@ namespace toy2d
 		}
 
 		swapchain = Context::GetInstance().device.createSwapchainKHR(createInfo);
+
+		getImages();
+		createImageViews();
 	}
 
 	Swapchain::~Swapchain()
 	{
+		for (auto& framebuffer : framebuffers)
+		{
+			Context::GetInstance().device.destroyFramebuffer(framebuffer);
+		}
+		for (auto& view : imageViews)
+		{
+			Context::GetInstance().device.destroyImageView(view);
+		}
 		Context::GetInstance().device.destroySwapchainKHR(swapchain);
 	}
 
@@ -71,6 +82,49 @@ namespace toy2d
 				info.present = present;
 				break;
 			}
+		}
+	}
+
+	void Swapchain::getImages()
+	{
+		images = Context::GetInstance().device.getSwapchainImagesKHR(swapchain);
+	}
+
+	void Swapchain::createImageViews()
+	{
+		imageViews.resize(images.size());
+
+		for (int i = 0; i < imageViews.size(); i++)
+		{
+			vk::ImageViewCreateInfo createInfo;
+			vk::ComponentMapping mapping;
+			vk::ImageSubresourceRange range;
+			range.setBaseMipLevel(0)
+				.setLevelCount(1)
+				.setBaseArrayLayer(0)
+				.setLayerCount(1)
+				.setAspectMask(vk::ImageAspectFlagBits::eColor);
+			createInfo.setImage(images[i])
+				.setViewType(vk::ImageViewType::e2D)
+				.setComponents(mapping)
+				.setFormat(info.format.format)
+				.setSubresourceRange(range);
+			imageViews[i] = Context::GetInstance().device.createImageView(createInfo);
+		}
+	}
+
+	void Swapchain::createFramebuffers(int w, int h)
+	{
+		framebuffers.resize(images.size());
+		for (int i = 0; i < framebuffers.size(); i++)
+		{
+			vk::FramebufferCreateInfo createInfo;
+			createInfo.setAttachments(imageViews[i])
+				.setWidth(w)
+				.setHeight(h)
+				.setRenderPass(Context::GetInstance().renderProcess->renderPass)
+				.setLayers(1);
+			framebuffers[i] = Context::GetInstance().device.createFramebuffer(createInfo);
 		}
 	}
 

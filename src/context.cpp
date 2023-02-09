@@ -29,6 +29,29 @@ namespace toy2d {
 		swapchain.reset();
 	}
 
+	void Context::InitRenderProcess(int w, int h, Shader* shader)
+	{
+		renderProcess->InitRenderPass();
+		renderProcess->InitPipelineLayout();
+		swapchain->createFramebuffers(w, h);
+		renderProcess->InitPipeline(w, h, shader);
+	}
+
+	void Context::DestroyRenderProcess()
+	{
+		renderProcess.reset();
+	}
+
+	void Context::InitRenderer()
+	{
+		renderer.reset(new Renderer());
+	}
+
+	void Context::DestroyRenderer()
+	{
+		renderer.reset();
+	}
+
 	Context::Context(std::vector<const char*>& extensions, CreateSurfaceFunc func) {
 		createInstance(extensions);
 		pickPhyiscalDevice();
@@ -36,6 +59,7 @@ namespace toy2d {
 		queryQueueFamilyIndices();
 		createDevice();
 		getQueues();
+		renderProcess.reset(new RenderProcess());
 	}
 
 	void Context::createInstance(std::vector<const char*>& extensions)

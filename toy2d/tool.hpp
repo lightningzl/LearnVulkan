@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <vector>
 #include <functional>
+#include <fstream>
+#include <iostream>
 #include "vulkan/vulkan.hpp"
 
 namespace toy2d {
@@ -27,4 +29,5 @@ namespace toy2d {
 		}
 	}
 
+	std::string ReadWholeFile(std::string&& filename);
 }
