@@ -2,71 +2,65 @@
 
 #include "vulkan/vulkan.hpp"
 #include <memory>
-#include <cassert>
 #include <iostream>
 #include <optional>
+#include <functional>
+
 #include "tool.hpp"
 #include "swapchain.hpp"
 #include "render_process.hpp"
-#include "renderer.hpp"
+#include "command_manager.hpp"
 
 namespace toy2d {
 
-	class Shader;
-	class Context final {
+	using GetSurfaceCallback = std::function<vk::SurfaceKHR(vk::Instance)>;
+	class Context
+	{
 	public:
-		static void Init(std::vector<const char*>& extensions, CreateSurfaceFunc func);
+		friend void Init(std::vector<const char*>& extensions, GetSurfaceCallback callback, int windowWidth, int windowHeight);
+
+		static void Init(std::vector<const char*>& extensions, GetSurfaceCallback callback);
 		static void Quit();
+		static Context& GetInstance();
 
-		static Context& GetInstance()
+		struct QueueFamilyIndices
 		{
-			assert(instance_);
-			return *instance_;
-		}
-
-		~Context();
-
-		struct QueueFamilyIndices final
-		{
-			std::optional<uint32_t> graphicsQueue;
-			std::optional<uint32_t> presentQueue;
+			std::optional<uint32_t> graphicsIndex;
+			std::optional<uint32_t> presentIndex;
 			operator bool()
 			{
-				return graphicsQueue.has_value() && presentQueue.has_value();
+				return graphicsIndex.has_value() && presentIndex.has_value();
 			}
-		};
+		} queueInfo;
 
 		vk::Instance instance;
 		vk::PhysicalDevice phyDevice;
 		vk::Device device;
 		vk::Queue graphcisQueue;
 		vk::Queue presentQueue;
-		vk::SurfaceKHR surface;
 		std::unique_ptr<Swapchain> swapchain;
 		std::unique_ptr<RenderProcess> renderProcess;
-		std::unique_ptr<Renderer> renderer;
-		QueueFamilyIndices queueFamilyIndices;
+		std::unique_ptr<CommandManager> commandManager;
 
-		void InitSwapchain(int w, int h);
-		void DestroySwapchain();
-
-		void InitRenderProcess(int w, int h, Shader* shader);
-		void DestroyRenderProcess();
-
-		void InitRenderer();
-		void DestroyRenderer();
 
 	private:
-		static std::unique_ptr<Context> instance_;
+		static Context* instance_;
+		vk::SurfaceKHR surface_;
+		GetSurfaceCallback getSurfaceCallback_ = nullptr;
 
-		Context(std::vector<const char*>& extensions, CreateSurfaceFunc func);
+		Context(std::vector<const char*>& extensions, GetSurfaceCallback callback);
+		~Context();
 
-		void createInstance(std::vector<const char*>& extensions);
-		void pickPhyiscalDevice();
-		void createDevice();
-		void getQueues();
+		void InitRenderProcess();
+		void InitSwapchain(int windowWidth, int windowHeight);
+		void InitGraphicsPipeline();
+		void InitCommandPool();
 
-		void queryQueueFamilyIndices();
+		vk::Instance createInstance(std::vector<const char*>& extensions);
+		vk::PhysicalDevice pickPhyiscalDevice();
+		vk::Device createDevice(vk::SurfaceKHR surface);
+
+		void queryQueueInfo(vk::SurfaceKHR surface);
 	};
 
 }

@@ -41,7 +41,7 @@ int main(int argc, char** argv) {
 	        return surface;
 		}, 1024, 720);
 
-    auto& renderer = toy2d::GetRenderer();
+    auto* renderer = toy2d::GetRenderer();
 
     while (!shouldClose) {
         while (SDL_PollEvent(&event)) {
@@ -49,7 +49,7 @@ int main(int argc, char** argv) {
                 shouldClose = true;
             }
         }
-        renderer.Render();
+        renderer->DrawTriangle();
     }
 
     toy2d::Quit();

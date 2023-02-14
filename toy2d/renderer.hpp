@@ -1,18 +1,29 @@
 #pragma once
 
 #include "vulkan/vulkan.hpp"
+#include "buffer.hpp"
 
 namespace toy2d
 {
 	class Renderer
 	{
 	public:
-		Renderer();
+		Renderer(int maxFlightCount = 2);
 		~Renderer();
 
-		void Render();
+		void DrawTriangle();
 
 	private:
+		int maxFlightCount_;
+		int curFrame_;
+		std::vector<vk::Fence> fences_;
+		std::vector<vk::Semaphore> imageAvliableSemaphores_;
+		std::vector<vk::Semaphore> renderFinishSemaphores_;
+		std::vector<vk::CommandBuffer> cmdBufs_;
+
+		std::unique_ptr<Buffer> hostVertexBuffer_;
+		std::unique_ptr<Buffer> deviceVertexBuffer_;
+
 		vk::CommandPool cmdPool_;
 		vk::CommandBuffer  cmdBuf_;
 
@@ -20,9 +31,10 @@ namespace toy2d
 		vk::Semaphore imageDrawFinish_;
 		vk::Fence cmdAvaliableFence_;
 
-		void initCmdPool();
-		void allocCmdBuf();
-		void createSems();
 		void createFence();
+		void createSemaphores();
+		void createCmdBuffers();
+		void createVertexBuffer();
+		void bufferVertexData();
 	};
 }

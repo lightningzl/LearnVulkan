@@ -6,11 +6,8 @@
 
 namespace toy2d 
 {
-	void Init(std::vector<const char*>& extensions, CreateSurfaceFunc func, int w, int h);
+	void Init(std::vector<const char*>& extensions, GetSurfaceCallback callback, int windowWidth, int windowHeight);
 	void Quit();
+	Renderer* GetRenderer();
 
-	inline Renderer& GetRenderer()
-	{
-		return *Context::GetInstance().renderer;
-	}
 }

@@ -1,23 +1,31 @@
 #include "toy2d/toy2d.hpp"
 #include "toy2d/shader.hpp"
+#include "toy2d/renderer.hpp"
 
 namespace toy2d 
 {
-	Shader* shader;
-	void Init(std::vector<const char*>& extensions, CreateSurfaceFunc func, int w, int h) {
-		Context::Init(extensions, func);
-		Context::GetInstance().InitSwapchain(w, h);
-		shader = new Shader(ReadWholeFile("./vert.spv"), ReadWholeFile("./frag.spv"));
-		Context::GetInstance().InitRenderProcess(w, h, shader);
-		Context::GetInstance().InitRenderer();
+	std::unique_ptr<Renderer> renderer_;
+
+	void Init(std::vector<const char*>& extensions, GetSurfaceCallback callback, int windowWidth, int windowHeight)
+	{
+		Context::Init(extensions, callback);
+		Context::GetInstance().InitSwapchain(windowWidth, windowHeight);
+		Context::GetInstance().InitRenderProcess();
+		Context::GetInstance().InitGraphicsPipeline();
+		Context::GetInstance().swapchain->InitFramebuffers();
+		Context::GetInstance().InitCommandPool();
+
+		renderer_ = std::make_unique<Renderer>();
 	}
 
 	void Quit() {
-		delete shader;
 		Context::GetInstance().device.waitIdle();
-		Context::GetInstance().DestroyRenderer();
-		Context::GetInstance().DestroyRenderProcess();
-		Context::GetInstance().DestroySwapchain();
+		renderer_.reset();
 		Context::Quit();
+	}
+
+	Renderer* GetRenderer()
+	{
+		return renderer_.get();
 	}
 }

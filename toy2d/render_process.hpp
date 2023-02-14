@@ -11,16 +11,17 @@ namespace toy2d
 		RenderProcess();
 		~RenderProcess();
 
-		vk::Pipeline pipeline;
-		vk::PipelineLayout pipelineLayout;
+		vk::Pipeline graphicsPipeline;
+		vk::PipelineLayout layout;
 		vk::RenderPass renderPass;
 
-		void InitPipeline(int width, int height, Shader* shader);
-		void InitPipelineLayout();
-		void InitRenderPass();
+		void RecreateGraphicsPipeline(const std::vector<char>& vertexSource, const std::vector<char>& fragSource);
+		void RecreateRenderPass();
 
 	private:
-
+		vk::PipelineLayout createLayout();
+		vk::Pipeline createGraphicsPipeline(const std::vector<char>& vertexSource, const std::vector<char>& fragSource);
+		vk::RenderPass createRenderPass();
 	};
 
 

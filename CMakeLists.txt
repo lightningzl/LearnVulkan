@@ -24,6 +24,9 @@ add_library(toy2d STATIC
     toy2d/shader.hpp
     toy2d/render_process.hpp
     toy2d/renderer.hpp
+    toy2d/command_manager.hpp
+    toy2d/buffer.hpp
+    toy2d/vertex.hpp
     # Source code files
     ${SRC}
 )

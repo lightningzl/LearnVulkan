@@ -3,104 +3,133 @@
 
 namespace toy2d {
 
-	std::unique_ptr<Context> Context::instance_ = nullptr;
+	Context* Context::instance_ = nullptr;
 
-	void Context::Init(std::vector<const char*>& extensions, CreateSurfaceFunc func) {
-		instance_.reset(new Context(extensions, func));
+	void Context::Init(std::vector<const char*>& extensions, GetSurfaceCallback callback)
+	{
+		instance_ = new Context(extensions, callback);
 	}
 
-	void Context::Quit() {
-		instance_.reset();
+	void Context::Quit() 
+	{
+		delete instance_;
 	}
 
-	Context::~Context() {
-		instance.destroySurfaceKHR(surface);
+	Context& Context::GetInstance()
+	{
+		assert(instance_);
+		return *instance_;
+	}
+
+	Context::Context(std::vector<const char*>& extensions, GetSurfaceCallback callback) 
+	{
+		getSurfaceCallback_ = callback;
+
+		instance = createInstance(extensions);
+		if (!instance)
+		{
+			std::cout << "create instance faild" << std::endl;
+			exit(1);
+		}
+
+		phyDevice = pickPhyiscalDevice();
+		if (!phyDevice)
+		{
+			std::cout << "pickup phyiscal device faild" << std::endl;
+			exit(1);
+		}
+
+		surface_ = getSurfaceCallback_(instance);
+		if (!surface_)
+		{
+			std::cout << "create surface faild" << std::endl;
+			exit(1);
+		}
+
+		device = createDevice(surface_);
+		if (!device)
+		{
+			std::cout << "create device faild" << std::endl;
+			exit(1);
+		}
+
+		graphcisQueue = device.getQueue(queueInfo.graphicsIndex.value(), 0);
+		presentQueue = device.getQueue(queueInfo.presentIndex.value(), 0);
+	}
+
+	Context::~Context() 
+	{
+		commandManager.reset();
+		renderProcess.reset();
+		swapchain.reset();
 		device.destroy();
 		instance.destroy();
 	}
 
-	void Context::InitSwapchain(int w, int h)
+	void Context::InitSwapchain(int windowWidth, int windowHeight)
 	{
-		swapchain.reset(new Swapchain(w, h));
+		swapchain = std::make_unique<Swapchain>(surface_, windowWidth, windowHeight);
 	}
 
-	void Context::DestroySwapchain()
+	void Context::InitGraphicsPipeline()
 	{
-		swapchain.reset();
+		auto vertexSource = ReadWholeFile("./vert.spv");
+		auto fragSource = ReadWholeFile("./frag.spv");
+		renderProcess->RecreateGraphicsPipeline(vertexSource, fragSource);
 	}
 
-	void Context::InitRenderProcess(int w, int h, Shader* shader)
+	void Context::InitCommandPool()
 	{
-		renderProcess->InitRenderPass();
-		renderProcess->InitPipelineLayout();
-		swapchain->createFramebuffers(w, h);
-		renderProcess->InitPipeline(w, h, shader);
+		commandManager = std::make_unique<CommandManager>();
 	}
 
-	void Context::DestroyRenderProcess()
+	void Context::InitRenderProcess()
 	{
-		renderProcess.reset();
+		renderProcess = std::make_unique<RenderProcess>();
 	}
 
-	void Context::InitRenderer()
-	{
-		renderer.reset(new Renderer());
-	}
-
-	void Context::DestroyRenderer()
-	{
-		renderer.reset();
-	}
-
-	Context::Context(std::vector<const char*>& extensions, CreateSurfaceFunc func) {
-		createInstance(extensions);
-		pickPhyiscalDevice();
-		surface = func(instance);
-		queryQueueFamilyIndices();
-		createDevice();
-		getQueues();
-		renderProcess.reset(new RenderProcess());
-	}
-
-	void Context::createInstance(std::vector<const char*>& extensions)
+	vk::Instance Context::createInstance(std::vector<const char*>& extensions)
 	{
 		vk::InstanceCreateInfo createInfo;
+
 		vk::ApplicationInfo appInfo;
 		appInfo.setApiVersion(VK_API_VERSION_1_3);
-		createInfo.setPApplicationInfo(&appInfo);
-		instance = vk::createInstance(createInfo);
 
-		std::vector<const char*> layers = { "VK_LAYER_KHRONOS_validation" };
-
-		RemoveNosupportedElems<const char*, vk::LayerProperties>(layers, vk::enumerateInstanceLayerProperties(),
-			[](const char* e1, const vk::LayerProperties& e2) {
-				return std::strcmp(e1, e2.layerName) == 0;
-			});
-		createInfo.setPEnabledLayerNames(layers)
+		createInfo.setPApplicationInfo(&appInfo)
 			.setPEnabledExtensionNames(extensions);
 
-		instance = vk::createInstance(createInfo);
+		std::vector<const char*> layers = { "VK_LAYER_KHRONOS_validation" };
+		createInfo.setPEnabledLayerNames(layers);
+
+		return vk::createInstance(createInfo);
 	}
 
-	void Context::pickPhyiscalDevice()
+	vk::PhysicalDevice Context::pickPhyiscalDevice()
 	{
 		auto devices = instance.enumeratePhysicalDevices();
-		phyDevice = devices[0];
-		std::cout << phyDevice.getProperties().deviceName << std::endl;
+		if (devices.size() == 0)
+		{
+			std::cout << "you don't have suitable device to support vulkan" << std::endl;
+		}
+		return devices[0];
 	}
 
-	void Context::createDevice()
+	vk::Device Context::createDevice(vk::SurfaceKHR surface)
 	{
+		vk::DeviceCreateInfo deviceCreateInfo;
+		queryQueueInfo(surface);
+		
 		std::array extensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
-		vk::DeviceCreateInfo createInfo;
+		deviceCreateInfo.setPEnabledExtensionNames(extensions);
+
 		std::vector<vk::DeviceQueueCreateInfo> queueCreateInfos;
 		float priorities = 1.0;
-		if (queueFamilyIndices.graphicsQueue.value() == queueFamilyIndices.presentQueue.value())
+		if (queueInfo.graphicsIndex.value() == queueInfo.presentIndex.value())
 		{
 			vk::DeviceQueueCreateInfo queueCreateInfo;
 			queueCreateInfo.setPQueuePriorities(&priorities)
 				.setQueueCount(1)
-				.setQueueFamilyIndex(queueFamilyIndices.graphicsQueue.value());
+				.setQueueFamilyIndex(queueInfo.graphicsIndex.value());
 			queueCreateInfos.push_back(std::move(queueCreateInfo));
 		}
 		else
@@ -108,40 +137,32 @@ namespace toy2d {
 			vk::DeviceQueueCreateInfo queueCreateInfo;
 			queueCreateInfo.setPQueuePriorities(&priorities)
 				.setQueueCount(1)
-				.setQueueFamilyIndex(queueFamilyIndices.graphicsQueue.value());
+				.setQueueFamilyIndex(queueInfo.graphicsIndex.value());
 			queueCreateInfos.push_back(queueCreateInfo);
-			queueCreateInfo.setPQueuePriorities(&priorities)
-				.setQueueCount(1)
-				.setQueueFamilyIndex(queueFamilyIndices.presentQueue.value());
+
+			queueCreateInfo.setQueueFamilyIndex(queueInfo.presentIndex.value());
 			queueCreateInfos.push_back(queueCreateInfo);
 		}
-		createInfo.setQueueCreateInfos(queueCreateInfos)
-			.setPEnabledExtensionNames(extensions);
+		deviceCreateInfo.setQueueCreateInfos(queueCreateInfos);
 
-		device = phyDevice.createDevice(createInfo);
+		return phyDevice.createDevice(deviceCreateInfo);
 	}
 
-	void Context::getQueues()
+	void Context::queryQueueInfo(vk::SurfaceKHR surface)
 	{
-		graphcisQueue = device.getQueue(queueFamilyIndices.graphicsQueue.value(), 0);
-		presentQueue = device.getQueue(queueFamilyIndices.presentQueue.value(), 0);
-	}
-
-	void Context::queryQueueFamilyIndices()
-	{
-		auto properties = phyDevice.getQueueFamilyProperties();
-		for (int i = 0; i < properties.size(); i++)
+		auto queueProperties = phyDevice.getQueueFamilyProperties();
+		for (int i = 0; i < queueProperties.size(); i++)
 		{
-			const auto& property = properties[i];
-			if (property.queueFlags | vk::QueueFlagBits::eGraphics)
+			if (queueProperties[i].queueFlags & vk::QueueFlagBits::eGraphics)
 			{
-				queueFamilyIndices.graphicsQueue = i;
+				queueInfo.graphicsIndex = i;
 			}
 			if (phyDevice.getSurfaceSupportKHR(i, surface))
 			{
-				queueFamilyIndices.presentQueue = i;
+				queueInfo.presentIndex = i;
 			}
-			if (queueFamilyIndices)
+			if (queueInfo.graphicsIndex.has_value()
+				&& queueInfo.presentIndex.has_value())
 			{
 				break;
 			}

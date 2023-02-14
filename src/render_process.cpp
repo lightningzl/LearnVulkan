@@ -1,100 +1,152 @@
 #include "toy2d/render_process.hpp"
 #include "toy2d/shader.hpp"
 #include "toy2d/context.hpp"
+#include "toy2d/vertex.hpp"
 
 namespace toy2d
 {
 
 	RenderProcess::RenderProcess()
 	{
-
+		layout = createLayout();
+		renderPass = createRenderPass();
+		graphicsPipeline = nullptr;
 	}
 
 	RenderProcess::~RenderProcess()
 	{
 		auto& device = Context::GetInstance().device;
 		device.destroyRenderPass(renderPass);
-		device.destroyPipelineLayout(pipelineLayout);
-		device.destroyPipeline(pipeline);
+		device.destroyPipelineLayout(layout);
+		device.destroyPipeline(graphicsPipeline);
 	}
 
-	void RenderProcess::InitPipeline(int width, int height, Shader* shader)
+	void RenderProcess::RecreateGraphicsPipeline(const std::vector<char>& vertexSource, const std::vector<char>& fragSource)
 	{
+		if (graphicsPipeline)
+		{
+			Context::GetInstance().device.destroyPipeline(graphicsPipeline);
+		}
+		graphicsPipeline = createGraphicsPipeline(vertexSource, fragSource);
+	}
+
+	void RenderProcess::RecreateRenderPass()
+	{
+		if (renderPass)
+		{
+			Context::GetInstance().device.destroyRenderPass(renderPass);
+		}
+		renderPass = createRenderPass();
+	}
+
+	vk::PipelineLayout RenderProcess::createLayout()
+	{
+		vk::PipelineLayoutCreateInfo createInfo;
+		createInfo.setPushConstantRangeCount(0)
+			.setSetLayoutCount(0);
+		return Context::GetInstance().device.createPipelineLayout(createInfo);
+	}
+
+	vk::Pipeline RenderProcess::createGraphicsPipeline(const std::vector<char>& vertexSource, const std::vector<char>& fragSource)
+	{
+		auto& context = Context::GetInstance();
+
 		vk::GraphicsPipelineCreateInfo createInfo;
+
+		// 0.shader prepare
+		vk::ShaderModuleCreateInfo vertexModuleCreateInfo, fragModuleCreateInfo;
+		vertexModuleCreateInfo.codeSize = vertexSource.size();
+		vertexModuleCreateInfo.pCode = (std::uint32_t*)vertexSource.data();
+		fragModuleCreateInfo.codeSize = fragSource.size();
+		fragModuleCreateInfo.pCode = (std::uint32_t*)fragSource.data();
+
+		auto vertexModule = context.device.createShaderModule(vertexModuleCreateInfo);
+		auto fragModule = context.device.createShaderModule(fragModuleCreateInfo);
+
+		std::array<vk::PipelineShaderStageCreateInfo, 2> stageCreateInfos;
+		stageCreateInfos[0].setModule(vertexModule)
+			.setPName("main")
+			.setStage(vk::ShaderStageFlagBits::eVertex); 
+		stageCreateInfos[1].setModule(fragModule)
+			.setPName("main")
+			.setStage(vk::ShaderStageFlagBits::eFragment);
 
 		// 1.Vertex Input
 		vk::PipelineVertexInputStateCreateInfo inputState;
-		createInfo.setPVertexInputState(&inputState);
+		auto binding = Vertex::GetBinding();
+		auto attribute = Vertex::GetAttribute();
+		inputState.setVertexBindingDescriptions(binding)
+			.setVertexAttributeDescriptions(attribute);
 
 		// 2.Vertex Assembly
 		vk::PipelineInputAssemblyStateCreateInfo inputAsm;
 		inputAsm.setPrimitiveRestartEnable(false)
 			.setTopology(vk::PrimitiveTopology::eTriangleList);
-		createInfo.setPInputAssemblyState(&inputAsm);
 
-		// 3.Shader
-		createInfo.setStages(shader->GetStage());
-
-		// 4.Viewport
+		// 3.Viewport and scissor
 		vk::PipelineViewportStateCreateInfo viewportState;
-		vk::Viewport viewport(0, 0, width, height, 0, 1);
-		viewportState.setViewports(viewport);
-		vk::Rect2D rect({ 0, 0 }, { static_cast<uint32_t>(width), static_cast<uint32_t>(height) });
-		viewportState.setScissors(rect);
-		createInfo.setPViewportState(&viewportState);
+		vk::Viewport viewport(0, 0, context.swapchain->GetExtent().width, context.swapchain->GetExtent().height, 0, 1);
+		vk::Rect2D scissor({ 0, 0 }, context.swapchain->GetExtent());
+		viewportState.setViewports(viewport)
+			.setScissors(scissor);
 
-		// 5.Rasterization
+		// 4.Rasterization
 		vk::PipelineRasterizationStateCreateInfo rasterizationInfo;
 		rasterizationInfo.setRasterizerDiscardEnable(false)
 			.setCullMode(vk::CullModeFlagBits::eBack)
 			.setFrontFace(vk::FrontFace::eClockwise)
 			.setPolygonMode(vk::PolygonMode::eFill)
-			.setLineWidth(1);
-		createInfo.setPRasterizationState(&rasterizationInfo);
+			.setLineWidth(1)
+			.setDepthClampEnable(false);
 
-		// 6.Mutisample
+		// 5.Mutisample
 		vk::PipelineMultisampleStateCreateInfo mutissampleInfo;
 		mutissampleInfo.setSampleShadingEnable(false)
 			.setRasterizationSamples(vk::SampleCountFlagBits::e1);
-		createInfo.setPMultisampleState(&mutissampleInfo);
 
-		// 7.test
+		// 6.depth and stencil test
 
-		// 8.color blending
-		vk::PipelineColorBlendStateCreateInfo blendInfo;
+		// 7.color blending
 		vk::PipelineColorBlendAttachmentState attachState;
 		attachState.setBlendEnable(false)
-			.setColorWriteMask(vk::ColorComponentFlagBits::eR 
-				| vk::ColorComponentFlagBits::eG 
-				| vk::ColorComponentFlagBits::eB 
+			.setColorWriteMask(vk::ColorComponentFlagBits::eR
+				| vk::ColorComponentFlagBits::eG
+				| vk::ColorComponentFlagBits::eB
 				| vk::ColorComponentFlagBits::eA);
+
+		vk::PipelineColorBlendStateCreateInfo blendInfo;
 		blendInfo.setLogicOpEnable(false)
 			.setAttachments(attachState);
-		createInfo.setPColorBlendState(&blendInfo);
 
-		// 9.renderPass and layout
-		createInfo.setRenderPass(renderPass)
-			.setLayout(pipelineLayout);
+		// 8.create graphics pipeline
+		createInfo.setPVertexInputState(&inputState)
+			.setPInputAssemblyState(&inputAsm)
+			.setStages(stageCreateInfos)
+			.setPViewportState(&viewportState)
+			.setPRasterizationState(&rasterizationInfo)
+			.setPMultisampleState(&mutissampleInfo)
+			.setPColorBlendState(&blendInfo)
+			.setRenderPass(renderPass)
+			.setLayout(layout);
 
 		auto result = Context::GetInstance().device.createGraphicsPipeline(nullptr, createInfo);
 		if (result.result != vk::Result::eSuccess)
 		{
 			throw std::runtime_error("create graphics pipline failed");
 		}
-		pipeline = result.value;
+
+
+		Context::GetInstance().device.destroyShaderModule(vertexModule);
+		Context::GetInstance().device.destroyShaderModule(fragModule);
+
+		return result.value;
 	}
 
-	void RenderProcess::InitPipelineLayout()
-	{
-		vk::PipelineLayoutCreateInfo createInfo;
-		pipelineLayout = Context::GetInstance().device.createPipelineLayout(createInfo);
-	}
-
-	void RenderProcess::InitRenderPass()
+	vk::RenderPass RenderProcess::createRenderPass()
 	{
 		vk::RenderPassCreateInfo createInfo;
-		vk::AttachmentDescription attachDesc;
-		attachDesc.setFormat(Context::GetInstance().swapchain->info.format.format)
+		vk::AttachmentDescription attachDescription;
+		attachDescription.setFormat(Context::GetInstance().swapchain->GetFormat().format)
 			.setInitialLayout(vk::ImageLayout::eUndefined)
 			.setFinalLayout(vk::ImageLayout::ePresentSrcKHR)
 			.setLoadOp(vk::AttachmentLoadOp::eClear)
@@ -102,15 +154,14 @@ namespace toy2d
 			.setStencilLoadOp(vk::AttachmentLoadOp::eDontCare)
 			.setStencilStoreOp(vk::AttachmentStoreOp::eDontCare)
 			.setSamples(vk::SampleCountFlagBits::e1);
-		createInfo.setAttachments(attachDesc);
 
 		vk::AttachmentReference reference;
 		reference.setLayout(vk::ImageLayout::eColorAttachmentOptimal)
 			.setAttachment(0);
+
 		vk::SubpassDescription subpass;
 		subpass.setPipelineBindPoint(vk::PipelineBindPoint::eGraphics)
 			.setColorAttachments(reference);
-		createInfo.setSubpasses(subpass);
 
 		vk::SubpassDependency dependency;
 		dependency.setSrcSubpass(VK_SUBPASS_EXTERNAL)
@@ -118,9 +169,12 @@ namespace toy2d
 			.setDstAccessMask(vk::AccessFlagBits::eColorAttachmentWrite)
 			.setSrcStageMask(vk::PipelineStageFlagBits::eColorAttachmentOutput)
 			.setDstStageMask(vk::PipelineStageFlagBits::eColorAttachmentOutput);
-		createInfo.setDependencies(dependency);
 
-		renderPass = Context::GetInstance().device.createRenderPass(createInfo);
+		createInfo.setAttachments(attachDescription)
+			.setSubpasses(subpass)
+			.setDependencies(dependency);
+
+		return Context::GetInstance().device.createRenderPass(createInfo);
 	}
 
 }
