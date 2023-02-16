@@ -23,18 +23,23 @@ namespace toy2d
 
 		std::unique_ptr<Buffer> hostVertexBuffer_;
 		std::unique_ptr<Buffer> deviceVertexBuffer_;
+		std::vector<std::unique_ptr<Buffer>> hostUniformBuffer_;
+		std::vector<std::unique_ptr<Buffer>> deviceUniformBuffer_;
 
-		vk::CommandPool cmdPool_;
-		vk::CommandBuffer  cmdBuf_;
-
-		vk::Semaphore imageAvaliable_;
-		vk::Semaphore imageDrawFinish_;
-		vk::Fence cmdAvaliableFence_;
+		vk::DescriptorPool descriptorPool_;
+		std::vector<vk::DescriptorSet> sets_;
 
 		void createFence();
 		void createSemaphores();
 		void createCmdBuffers();
 		void createVertexBuffer();
+		void createUniformBuffers();
 		void bufferVertexData();
+		void bufferUniformData();
+		void createDescriptorPool();
+		void allocateSets();
+		void updateSets();
+
+		void copyBuffer(vk::Buffer& src, vk::Buffer& dst, size_t size, size_t srcOffset, size_t dstOffset);
 	};
 }

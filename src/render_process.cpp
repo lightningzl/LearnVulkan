@@ -2,12 +2,14 @@
 #include "toy2d/shader.hpp"
 #include "toy2d/context.hpp"
 #include "toy2d/vertex.hpp"
+#include "toy2d/uniform.hpp"
 
 namespace toy2d
 {
 
 	RenderProcess::RenderProcess()
 	{
+		setLayout = createSetLayout();
 		layout = createLayout();
 		renderPass = createRenderPass();
 		graphicsPipeline = nullptr;
@@ -16,6 +18,7 @@ namespace toy2d
 	RenderProcess::~RenderProcess()
 	{
 		auto& device = Context::GetInstance().device;
+		device.destroyDescriptorSetLayout(setLayout);
 		device.destroyRenderPass(renderPass);
 		device.destroyPipelineLayout(layout);
 		device.destroyPipeline(graphicsPipeline);
@@ -42,8 +45,7 @@ namespace toy2d
 	vk::PipelineLayout RenderProcess::createLayout()
 	{
 		vk::PipelineLayoutCreateInfo createInfo;
-		createInfo.setPushConstantRangeCount(0)
-			.setSetLayoutCount(0);
+		createInfo.setSetLayouts(setLayout);
 		return Context::GetInstance().device.createPipelineLayout(createInfo);
 	}
 
@@ -175,6 +177,14 @@ namespace toy2d
 			.setDependencies(dependency);
 
 		return Context::GetInstance().device.createRenderPass(createInfo);
+	}
+
+	vk::DescriptorSetLayout RenderProcess::createSetLayout()
+	{
+		vk::DescriptorSetLayoutCreateInfo createInfo;
+		auto binding = Uniform::GetBinding();
+		createInfo.setBindings(binding);
+		return Context::GetInstance().device.createDescriptorSetLayout(createInfo);
 	}
 
 }

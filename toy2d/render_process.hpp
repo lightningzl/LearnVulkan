@@ -11,9 +11,10 @@ namespace toy2d
 		RenderProcess();
 		~RenderProcess();
 
-		vk::Pipeline graphicsPipeline;
-		vk::PipelineLayout layout;
-		vk::RenderPass renderPass;
+		vk::Pipeline graphicsPipeline = nullptr;
+		vk::PipelineLayout layout = nullptr;
+		vk::RenderPass renderPass = nullptr;
+		vk::DescriptorSetLayout setLayout = nullptr;
 
 		void RecreateGraphicsPipeline(const std::vector<char>& vertexSource, const std::vector<char>& fragSource);
 		void RecreateRenderPass();
@@ -22,6 +23,7 @@ namespace toy2d
 		vk::PipelineLayout createLayout();
 		vk::Pipeline createGraphicsPipeline(const std::vector<char>& vertexSource, const std::vector<char>& fragSource);
 		vk::RenderPass createRenderPass();
+		vk::DescriptorSetLayout createSetLayout();
 	};
 
 
