@@ -7,18 +7,19 @@ namespace toy2d
 	class Shader
 	{
 	public:
-		Shader(const std::string& vertexSource, const std::string& fragmentSource);
+		Shader(const std::vector<char>& vertexSource, const std::vector<char>& fragmentSource);
 		virtual ~Shader();
 
-		vk::ShaderModule vertexModule;
-		vk::ShaderModule fragmentModule;
+		vk::ShaderModule GetVertexModule() const { return vertexModule_; }
+		vk::ShaderModule GetFragModule() const { return fragmentModule_; }
 
-		std::vector<vk::PipelineShaderStageCreateInfo>& GetStage();
+		const std::vector<vk::DescriptorSetLayout>& GetDescriptorSetLayouts() const { return layouts_; }
 
 	private:
-		std::vector<vk::PipelineShaderStageCreateInfo> stage_;
+		vk::ShaderModule vertexModule_;
+		vk::ShaderModule fragmentModule_;
+		std::vector<vk::DescriptorSetLayout> layouts_;
 
-		void InitStage();
-
+		void initDescriptorSetLayouts();
 	};
 }

@@ -3,41 +3,49 @@
 
 namespace toy2d
 {
-	Shader::Shader(const std::string& vertexSource, const std::string& fragmentSource)
+	Shader::Shader(const std::vector<char>& vertexSource, const std::vector<char>& fragmentSource)
 	{
-		vk::ShaderModuleCreateInfo createInfo;
+		vk::ShaderModuleCreateInfo vertexModuleCreateInfo, fragModuleCreateInfo;
 
-		createInfo.codeSize = vertexSource.size();
-		createInfo.pCode = (uint32_t*)vertexSource.data();
-		vertexModule = Context::GetInstance().device.createShaderModule(createInfo);
+		vertexModuleCreateInfo.codeSize = vertexSource.size();
+		vertexModuleCreateInfo.pCode = (uint32_t*)vertexSource.data();
+		fragModuleCreateInfo.codeSize = fragmentSource.size();
+		fragModuleCreateInfo.pCode = (uint32_t*)fragmentSource.data();
 
-		createInfo.codeSize = fragmentSource.size();
-		createInfo.pCode = (uint32_t*)fragmentSource.data();
-		fragmentModule = Context::GetInstance().device.createShaderModule(createInfo);
-		
-		InitStage();
+		vertexModule_ = Context::GetInstance().device.createShaderModule(vertexModuleCreateInfo);
+		fragmentModule_ = Context::GetInstance().device.createShaderModule(fragModuleCreateInfo);
+
+		initDescriptorSetLayouts();
 	}
 
 	Shader::~Shader()
 	{
-		Context::GetInstance().device.destroyShaderModule(vertexModule);
-		Context::GetInstance().device.destroyShaderModule(fragmentModule);
+		auto& device = Context::GetInstance().device;
+		for (auto& layout : layouts_)
+		{
+			device.destroyDescriptorSetLayout(layout);
+		}
+
+		device.destroyShaderModule(vertexModule_);
+		device.destroyShaderModule(fragmentModule_);
 	}
 
-	std::vector<vk::PipelineShaderStageCreateInfo>& Shader::GetStage()
+	void Shader::initDescriptorSetLayouts()
 	{
-		return stage_;
-	}
+		vk::DescriptorSetLayoutCreateInfo createInfo;
+		vk::DescriptorSetLayoutBinding binding;
+		binding.setBinding(0)
+			.setDescriptorType(vk::DescriptorType::eUniformBuffer)
+			.setStageFlags(vk::ShaderStageFlagBits::eVertex)
+			.setDescriptorCount(1);
+		createInfo.setBindings(binding);
+		layouts_.push_back(Context::GetInstance().device.createDescriptorSetLayout(createInfo));
 
-	void Shader::InitStage()
-	{
-		stage_.resize(2);
-		stage_[0].setStage(vk::ShaderStageFlagBits::eVertex)
-			.setModule(vertexModule)
-			.setPName("main");
-		stage_[1].setStage(vk::ShaderStageFlagBits::eFragment)
-			.setModule(fragmentModule)
-			.setPName("main");
+		binding.setBinding(0)
+			.setDescriptorType(vk::DescriptorType::eUniformBuffer)
+			.setStageFlags(vk::ShaderStageFlagBits::eFragment)
+			.setDescriptorCount(1);
+		createInfo.setBindings(binding);
+		layouts_.push_back(Context::GetInstance().device.createDescriptorSetLayout(createInfo));
 	}
-
 }

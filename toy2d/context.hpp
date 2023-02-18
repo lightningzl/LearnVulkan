@@ -14,6 +14,7 @@
 namespace toy2d {
 
 	using GetSurfaceCallback = std::function<vk::SurfaceKHR(vk::Instance)>;
+	class Shader;
 	class Context
 	{
 	public:
@@ -41,7 +42,7 @@ namespace toy2d {
 		std::unique_ptr<Swapchain> swapchain;
 		std::unique_ptr<RenderProcess> renderProcess;
 		std::unique_ptr<CommandManager> commandManager;
-
+		std::unique_ptr<Shader> shader;
 
 	private:
 		static Context* instance_;
@@ -55,6 +56,7 @@ namespace toy2d {
 		void InitSwapchain(int windowWidth, int windowHeight);
 		void InitGraphicsPipeline();
 		void InitCommandPool();
+		void initShaderModules();
 
 		vk::Instance createInstance(std::vector<const char*>& extensions);
 		vk::PhysicalDevice pickPhyiscalDevice();

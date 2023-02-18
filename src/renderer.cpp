@@ -1,44 +1,42 @@
 #include "toy2d/renderer.hpp"
 #include "toy2d/context.hpp"
-#include "toy2d/vertex.hpp"
-#include "toy2d/uniform.hpp"
+#include "toy2d/shader.hpp"
 #include <iostream>
 
 namespace toy2d
 {
-	
-	const std::array<Vertex, 3> vertexes =
-	{
-		Vertex{0.0, -0.5},
-		Vertex{0.5, 0.5},
-		Vertex{-0.5, 0.5},
-	};
-
-	const Uniform uniform{ Color{1, 0, 0} };
+	const size_t MVPSIZE = sizeof(float) * 4 * 4 * 3;
+	const size_t COLORSIZE = sizeof(float) * 3;
 
 	Renderer::Renderer(int maxFlightCount /*= 2*/)
 		: maxFlightCount_(maxFlightCount), curFrame_(0)
 	{
-		createFence();
+		createFences();
 		createSemaphores();
 		createCmdBuffers();
-		createVertexBuffer();
+		createBuffers();
 		bufferVertexData();
-		createUniformBuffers();
-		bufferUniformData();
-		createDescriptorPool();
-		allocateSets();
-		updateSets();
+		createUniformBuffers(maxFlightCount);
+		bufferData();
+		createDescriptorPool(maxFlightCount);
+		allocDescriptorSets(maxFlightCount);
+		updateDescriptorSets();
+		initMats();
+
+		SetDrawColor(Color{ 0, 0, 0 });
 	}
 
 	Renderer::~Renderer()
 	{
 		auto& device = Context::GetInstance().device;
-		device.destroyDescriptorPool(descriptorPool_);
-		hostUniformBuffer_.clear();
-		deviceUniformBuffer_.clear();
-		hostVertexBuffer_.reset();
-		deviceVertexBuffer_.reset();
+		device.destroyDescriptorPool(descriptorPool1_);
+		device.destroyDescriptorPool(descriptorPool2_);
+		uniformBuffers_.clear();
+		deviceUniformBuffers_.clear();
+		colorBuffers_.clear();
+		deviceColorBuffers_.clear();
+		verticesBuffer_.reset();
+		indicesBuffer_.reset();
 		for (auto& sem : imageAvliableSemaphores_)
 		{
 			device.destroySemaphore(sem);
@@ -47,13 +45,18 @@ namespace toy2d
 		{
 			device.destroySemaphore(sem);
 		}
-		for (auto fence : fences_)
+		for (auto& fence : fences_)
 		{
 			device.destroyFence(fence);
 		}
 	}
 
-	void Renderer::DrawTriangle()
+	void Renderer::SetProject(int right, int left, int bottom, int top, int far, int near)
+	{
+		projectMat_ = Mat4::CreateOrtho(left, right, top, bottom, near, far);
+	}
+
+	void Renderer::DrawRect(const Rect& rect)
 	{
 		auto& ctx = Context::GetInstance();
 		auto& device = ctx.device;
@@ -62,7 +65,10 @@ namespace toy2d
 			throw std::runtime_error("wait for fence failed");
 		}
 		device.resetFences(fences_[curFrame_]);
-		
+
+		auto model = Mat4::CreateTranslate(rect.position).Mul(Mat4::CreateScale(rect.size));
+		bufferMVPData(model);
+
 		auto& swapchain = ctx.swapchain;
 		auto resultValue = device.acquireNextImageKHR(swapchain->swapchain, std::numeric_limits<uint64_t>::max(), imageAvliableSemaphores_[curFrame_], nullptr);
 		if (resultValue.result != vk::Result::eSuccess)
@@ -85,13 +91,20 @@ namespace toy2d
 				.setRenderArea(vk::Rect2D({}, swapchain->GetExtent()))
 				.setFramebuffer(swapchain->framebuffers[imageIndex])
 				.setClearValues(clearValue);
-			cmdBufs_[curFrame_].beginRenderPass(renderPassBegin, {});
+			cmdBufs_[curFrame_].beginRenderPass(&renderPassBegin, vk::SubpassContents::eInline);
 			{
 				cmdBufs_[curFrame_].bindPipeline(vk::PipelineBindPoint::eGraphics, ctx.renderProcess->graphicsPipeline);
 				vk::DeviceSize offset = 0;
-				cmdBufs_[curFrame_].bindDescriptorSets(vk::PipelineBindPoint::eGraphics, Context::GetInstance().renderProcess->layout, 0, sets_[curFrame_], {});
-				cmdBufs_[curFrame_].bindVertexBuffers(0, deviceVertexBuffer_->buffer, offset);
-				cmdBufs_[curFrame_].draw(3, 1, 0, 0);
+				cmdBufs_[curFrame_].bindVertexBuffers(0, verticesBuffer_->buffer, offset);
+				cmdBufs_[curFrame_].bindIndexBuffer(indicesBuffer_->buffer, 0, vk::IndexType::eUint32);
+
+				cmdBufs_[curFrame_].bindDescriptorSets(vk::PipelineBindPoint::eGraphics,
+					Context::GetInstance().renderProcess->layout,
+					0, descriptorSets_.first[curFrame_], {});
+				cmdBufs_[curFrame_].bindDescriptorSets(vk::PipelineBindPoint::eGraphics,
+					Context::GetInstance().renderProcess->layout,
+					1, descriptorSets_.second[curFrame_], {});
+				cmdBufs_[curFrame_].drawIndexed(6, 1, 0, 0, 0);
 			}
 			cmdBufs_[curFrame_].endRenderPass();
 		}
@@ -117,7 +130,17 @@ namespace toy2d
 		curFrame_ = (curFrame_ + 1) % maxFlightCount_;
 	}
 
-	void Renderer::createFence()
+	void Renderer::SetDrawColor(const Color& color)
+	{
+		for (int i = 0; i < colorBuffers_.size(); i++)
+		{
+			auto& buffer = colorBuffers_[i];
+			memcpy(buffer->map, (void*)&color, COLORSIZE);
+			transformBuffer2Device(*buffer, *deviceColorBuffers_[i], 0, 0, buffer->size);
+		}
+	}
+
+	void Renderer::createFences()
 	{
 		fences_.resize(maxFlightCount_, nullptr);
 
@@ -159,99 +182,161 @@ namespace toy2d
 		}
 	}
 
-	void Renderer::createVertexBuffer()
+	void Renderer::createBuffers()
 	{
-		hostVertexBuffer_.reset(new Buffer(sizeof(vertexes),
-			vk::BufferUsageFlagBits::eTransferSrc,
+		verticesBuffer_.reset(new Buffer(vk::BufferUsageFlagBits::eVertexBuffer,
+			sizeof(float) * 8,
 			vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent));
-		deviceVertexBuffer_.reset(new Buffer(sizeof(vertexes),
-			vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eTransferDst,
-			vk::MemoryPropertyFlagBits::eDeviceLocal));
+		indicesBuffer_.reset(new Buffer(vk::BufferUsageFlagBits::eIndexBuffer,
+			sizeof(float) * 6,
+			vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent));
 	}
 
-	void Renderer::createUniformBuffers()
+	void Renderer::createUniformBuffers(int flightCount)
 	{
-		hostUniformBuffer_.resize(maxFlightCount_);
-		deviceUniformBuffer_.resize(maxFlightCount_);
-
-		for (auto& buffer : hostUniformBuffer_)
+		uniformBuffers_.resize(flightCount);
+		for (auto& buffer : uniformBuffers_)
 		{
-			buffer.reset(new Buffer( sizeof(uniform),
-				vk::BufferUsageFlagBits::eTransferSrc,
+			buffer.reset(new Buffer(vk::BufferUsageFlagBits::eTransferSrc,
+				MVPSIZE,
 				vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible));
 		}
-		
-		for (auto& buffer : deviceUniformBuffer_)
+
+		deviceUniformBuffers_.resize(flightCount);
+		for (auto& buffer : deviceUniformBuffers_)
 		{
-			buffer.reset(new Buffer(sizeof(uniform),
-				vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eUniformBuffer,
+			buffer.reset(new Buffer(vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eUniformBuffer,
+				MVPSIZE,
+				vk::MemoryPropertyFlagBits::eDeviceLocal));
+		}
+
+		colorBuffers_.resize(flightCount);
+		for (auto& buffer : colorBuffers_)
+		{
+			buffer.reset(new Buffer(vk::BufferUsageFlagBits::eTransferSrc,
+				COLORSIZE,
+				vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible));
+		}
+
+		deviceColorBuffers_.resize(flightCount);
+		for (auto& buffer : deviceColorBuffers_)
+		{
+			buffer.reset(new Buffer(vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eUniformBuffer,
+				COLORSIZE,
 				vk::MemoryPropertyFlagBits::eDeviceLocal));
 		}
 	}
 
-	void Renderer::bufferVertexData()
+	void Renderer::bufferData()
 	{
-		void* ptr = Context::GetInstance().device.mapMemory(hostVertexBuffer_->memory, 0, hostVertexBuffer_->size);
-		memcpy(ptr, vertexes.data(), sizeof(vertexes));
-		Context::GetInstance().device.unmapMemory(hostVertexBuffer_->memory);
-		copyBuffer(hostVertexBuffer_->buffer, deviceVertexBuffer_->buffer, hostVertexBuffer_->size, 0, 0);
+		bufferVertexData();
+		bufferIndicesData();
 	}
 
-	void Renderer::bufferUniformData()
+	void Renderer::bufferVertexData()
 	{
-		for (int i = 0; i < hostUniformBuffer_.size(); i++)
+		Vec vertices[] = 
 		{
-			auto& buffer = hostUniformBuffer_[i];
-			void* ptr = Context::GetInstance().device.mapMemory(buffer->memory, 0, buffer->size);
-			memcpy(ptr, &uniform, sizeof(uniform));
-			Context::GetInstance().device.unmapMemory(buffer->memory);
-			copyBuffer(buffer->buffer, deviceUniformBuffer_[i]->buffer, buffer->size, 0, 0);
+			Vec{{-0.5, -0.5}},
+			Vec{{0.5, -0.5}},
+			Vec{{0.5, 0.5}},
+			Vec{{-0.5, 0.5}},
+		};
+		memcpy(verticesBuffer_->map, vertices, sizeof(vertices));
+	}
+
+	void Renderer::bufferIndicesData()
+	{
+		uint32_t indices[] = 
+		{
+			0, 1, 3,
+			1, 2, 3,
+		};
+		memcpy(indicesBuffer_->map, indices, sizeof(indices));
+	}
+
+	void Renderer::bufferMVPData(const Mat4& model)
+	{
+		MVP mvp;
+		mvp.project = projectMat_;
+		mvp.view = viewMat_;
+		mvp.model = model;
+		for (int i = 0; i < uniformBuffers_.size(); i++)
+		{
+			auto& buffer = uniformBuffers_[i];
+			memcpy(buffer->map, (void*)&mvp, sizeof(mvp));
+			transformBuffer2Device(*buffer, *deviceUniformBuffers_[i], 0, 0, buffer->size);
 		}
 	}
 
-	void Renderer::createDescriptorPool()
+	void Renderer::initMats()
+	{
+		viewMat_ = Mat4::CreateIdentity();
+		projectMat_ = Mat4::CreateIdentity();
+	}
+
+	void Renderer::createDescriptorPool(int flightCount)
 	{
 		vk::DescriptorPoolCreateInfo createInfo;
 		vk::DescriptorPoolSize poolSize;
 		poolSize.setType(vk::DescriptorType::eUniformBuffer)
-			.setDescriptorCount(maxFlightCount_);
-		createInfo.setMaxSets(maxFlightCount_)
-			.setPoolSizes(poolSize);
-		descriptorPool_ = Context::GetInstance().device.createDescriptorPool(createInfo);
+			.setDescriptorCount(flightCount);
+		std::vector<vk::DescriptorPoolSize> sizes(2, poolSize);
+		createInfo.setMaxSets(flightCount)
+			.setPoolSizes(sizes);
+		descriptorPool1_ = Context::GetInstance().device.createDescriptorPool(createInfo);
+		descriptorPool2_ = Context::GetInstance().device.createDescriptorPool(createInfo);
+
 	}
 
-	void Renderer::allocateSets()
+	void Renderer::allocDescriptorSets(int flightCount)
 	{
-		std::vector<vk::DescriptorSetLayout> layouts(maxFlightCount_, Context::GetInstance().renderProcess->setLayout);
+		std::vector layouts(flightCount, Context::GetInstance().shader->GetDescriptorSetLayouts()[0]);
 		vk::DescriptorSetAllocateInfo allocInfo;
-		allocInfo.setDescriptorPool(descriptorPool_)
-			.setDescriptorSetCount(maxFlightCount_)
+		allocInfo.setDescriptorPool(descriptorPool1_)
 			.setSetLayouts(layouts);
-		sets_ = Context::GetInstance().device.allocateDescriptorSets(allocInfo);
+		descriptorSets_.first = Context::GetInstance().device.allocateDescriptorSets(allocInfo);
+
+		layouts = std::vector(flightCount, Context::GetInstance().shader->GetDescriptorSetLayouts()[1]);
+		allocInfo.setDescriptorPool(descriptorPool2_)
+			.setSetLayouts(layouts);
+		descriptorSets_.second = Context::GetInstance().device.allocateDescriptorSets(allocInfo);
 	}
 
-	void Renderer::updateSets()
+	void Renderer::updateDescriptorSets()
 	{
-		for (int i = 0; i < sets_.size(); i++)
+		for (int i = 0; i < descriptorSets_.first.size(); i++)
 		{
-			auto& set = sets_[i];
-			vk::DescriptorBufferInfo bufferInfo;
-			bufferInfo.setBuffer(deviceUniformBuffer_[i]->buffer)
+			vk::DescriptorBufferInfo bufferInfo1;
+			bufferInfo1.setBuffer(deviceUniformBuffers_[i]->buffer)
 				.setOffset(0)
-				.setRange(deviceUniformBuffer_[i]->size);
+				.setRange(MVPSIZE);
 
-			vk::WriteDescriptorSet writer;
-			writer.setDescriptorType(vk::DescriptorType::eUniformBuffer)
-				.setBufferInfo(bufferInfo)
+			std::vector<vk::WriteDescriptorSet> writerInfos(2);
+			writerInfos[0].setDescriptorType(vk::DescriptorType::eUniformBuffer)
+				.setBufferInfo(bufferInfo1)
 				.setDstBinding(0)
-				.setDstSet(set)
+				.setDstSet(descriptorSets_.first[i])
 				.setDstArrayElement(0)
 				.setDescriptorCount(1);
-			Context::GetInstance().device.updateDescriptorSets(writer, {});
+
+			vk::DescriptorBufferInfo bufferInfo2;
+			bufferInfo2.setBuffer(deviceColorBuffers_[i]->buffer)
+				.setOffset(0)
+				.setRange(COLORSIZE);
+
+			writerInfos[1].setDescriptorType(vk::DescriptorType::eUniformBuffer)
+				.setBufferInfo(bufferInfo2)
+				.setDstBinding(0)
+				.setDstSet(descriptorSets_.second[i])
+				.setDstArrayElement(0)
+				.setDescriptorCount(1);
+
+			Context::GetInstance().device.updateDescriptorSets(writerInfos, {});
 		}
 	}
 
-	void Renderer::copyBuffer(vk::Buffer& src, vk::Buffer& dst, size_t size, size_t srcOffset, size_t dstOffset)
+	void Renderer::transformBuffer2Device(Buffer& src, Buffer& dst, size_t srcOffset, size_t dstOffset, size_t size)
 	{
 		auto cmdBuf = Context::GetInstance().commandManager->CreateOneCommandBuffer();
 
@@ -263,13 +348,14 @@ namespace toy2d
 			region.setSize(size)
 				.setSrcOffset(srcOffset)
 				.setDstOffset(dstOffset);
-			cmdBuf.copyBuffer(src, dst, region);
+			cmdBuf.copyBuffer(src.buffer, dst.buffer, region);
 		}
 		cmdBuf.end();
 
 		vk::SubmitInfo submit;
 		submit.setCommandBuffers(cmdBuf);
 		Context::GetInstance().graphcisQueue.submit(submit);
+		Context::GetInstance().graphcisQueue.waitIdle();
 		Context::GetInstance().device.waitIdle();
 		Context::GetInstance().commandManager->FreeCmd(cmdBuf);
 	}

@@ -1,15 +1,13 @@
 #include "toy2d/render_process.hpp"
 #include "toy2d/shader.hpp"
 #include "toy2d/context.hpp"
-#include "toy2d/vertex.hpp"
-#include "toy2d/uniform.hpp"
+#include "toy2d/math.hpp"
 
 namespace toy2d
 {
 
 	RenderProcess::RenderProcess()
 	{
-		setLayout = createSetLayout();
 		layout = createLayout();
 		renderPass = createRenderPass();
 		graphicsPipeline = nullptr;
@@ -18,19 +16,18 @@ namespace toy2d
 	RenderProcess::~RenderProcess()
 	{
 		auto& device = Context::GetInstance().device;
-		device.destroyDescriptorSetLayout(setLayout);
 		device.destroyRenderPass(renderPass);
 		device.destroyPipelineLayout(layout);
 		device.destroyPipeline(graphicsPipeline);
 	}
 
-	void RenderProcess::RecreateGraphicsPipeline(const std::vector<char>& vertexSource, const std::vector<char>& fragSource)
+	void RenderProcess::RecreateGraphicsPipeline(const Shader& shader)
 	{
 		if (graphicsPipeline)
 		{
 			Context::GetInstance().device.destroyPipeline(graphicsPipeline);
 		}
-		graphicsPipeline = createGraphicsPipeline(vertexSource, fragSource);
+		graphicsPipeline = createGraphicsPipeline(shader);
 	}
 
 	void RenderProcess::RecreateRenderPass()
@@ -45,38 +42,29 @@ namespace toy2d
 	vk::PipelineLayout RenderProcess::createLayout()
 	{
 		vk::PipelineLayoutCreateInfo createInfo;
-		createInfo.setSetLayouts(setLayout);
+		createInfo.setSetLayouts(Context::GetInstance().shader->GetDescriptorSetLayouts());
 		return Context::GetInstance().device.createPipelineLayout(createInfo);
 	}
 
-	vk::Pipeline RenderProcess::createGraphicsPipeline(const std::vector<char>& vertexSource, const std::vector<char>& fragSource)
+	vk::Pipeline RenderProcess::createGraphicsPipeline(const Shader& shader)
 	{
 		auto& context = Context::GetInstance();
 
 		vk::GraphicsPipelineCreateInfo createInfo;
 
 		// 0.shader prepare
-		vk::ShaderModuleCreateInfo vertexModuleCreateInfo, fragModuleCreateInfo;
-		vertexModuleCreateInfo.codeSize = vertexSource.size();
-		vertexModuleCreateInfo.pCode = (std::uint32_t*)vertexSource.data();
-		fragModuleCreateInfo.codeSize = fragSource.size();
-		fragModuleCreateInfo.pCode = (std::uint32_t*)fragSource.data();
-
-		auto vertexModule = context.device.createShaderModule(vertexModuleCreateInfo);
-		auto fragModule = context.device.createShaderModule(fragModuleCreateInfo);
-
 		std::array<vk::PipelineShaderStageCreateInfo, 2> stageCreateInfos;
-		stageCreateInfos[0].setModule(vertexModule)
+		stageCreateInfos[0].setModule(shader.GetVertexModule())
 			.setPName("main")
 			.setStage(vk::ShaderStageFlagBits::eVertex); 
-		stageCreateInfos[1].setModule(fragModule)
+		stageCreateInfos[1].setModule(shader.GetFragModule())
 			.setPName("main")
 			.setStage(vk::ShaderStageFlagBits::eFragment);
 
 		// 1.Vertex Input
 		vk::PipelineVertexInputStateCreateInfo inputState;
-		auto binding = Vertex::GetBinding();
-		auto attribute = Vertex::GetAttribute();
+		auto binding = Vec::GetBingDescription();
+		auto attribute = Vec::GetAttributeDescription();
 		inputState.setVertexBindingDescriptions(binding)
 			.setVertexAttributeDescriptions(attribute);
 
@@ -137,10 +125,6 @@ namespace toy2d
 			throw std::runtime_error("create graphics pipline failed");
 		}
 
-
-		Context::GetInstance().device.destroyShaderModule(vertexModule);
-		Context::GetInstance().device.destroyShaderModule(fragModule);
-
 		return result.value;
 	}
 
@@ -177,14 +161,6 @@ namespace toy2d
 			.setDependencies(dependency);
 
 		return Context::GetInstance().device.createRenderPass(createInfo);
-	}
-
-	vk::DescriptorSetLayout RenderProcess::createSetLayout()
-	{
-		vk::DescriptorSetLayoutCreateInfo createInfo;
-		auto binding = Uniform::GetBinding();
-		createInfo.setBindings(binding);
-		return Context::GetInstance().device.createDescriptorSetLayout(createInfo);
 	}
 
 }

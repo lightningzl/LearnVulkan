@@ -3,61 +3,61 @@
 
 namespace toy2d
 {
-	Buffer::Buffer(size_t size, vk::BufferUsageFlags usage, vk::MemoryPropertyFlags property)
+	Buffer::Buffer(vk::BufferUsageFlags usage, size_t size, vk::MemoryPropertyFlags property)
 		: size(size)
 	{
-		createBuffer(size, usage);
-		allocateMemory(queryMemoryInfo(property));
-		bindMemory2Buffer();
-	}
+		auto& device = Context::GetInstance().device;
 
-	Buffer::~Buffer()
-	{
-		Context::GetInstance().device.freeMemory(memory);
-		Context::GetInstance().device.destroy(buffer);
-	}
-
-	void Buffer::createBuffer(size_t size, vk::BufferUsageFlags usage)
-	{
 		vk::BufferCreateInfo createInfo;
 		createInfo.setSize(size)
 			.setUsage(usage)
 			.setSharingMode(vk::SharingMode::eExclusive);
-		
-		buffer = Context::GetInstance().device.createBuffer(createInfo);
-	}
+		buffer = device.createBuffer(createInfo);
 
-	void Buffer::allocateMemory(MemoryInfo info)
-	{
-		vk::MemoryAllocateInfo allocInfo;
-		allocInfo.setMemoryTypeIndex(info.index)
-			.setAllocationSize(info.size);
-		memory = Context::GetInstance().device.allocateMemory(allocInfo);
-	}
-
-	void Buffer::bindMemory2Buffer()
-	{
-		Context::GetInstance().device.bindBufferMemory(buffer, memory, 0);
-	}
-
-	Buffer::MemoryInfo Buffer::queryMemoryInfo(vk::MemoryPropertyFlags property)
-	{
-		MemoryInfo info;
 		auto requirements = Context::GetInstance().device.getBufferMemoryRequirements(buffer);
-		info.size = requirements.size;
+		requireSize = requirements.size;
 
+		auto index = queryBufferMemTypeIndex(requirements.memoryTypeBits, property);
+
+		vk::MemoryAllocateInfo allocInfo;
+		allocInfo.setMemoryTypeIndex(index)
+			.setAllocationSize(requirements.size);
+		memory = device.allocateMemory(allocInfo);
+
+		device.bindBufferMemory(buffer, memory, 0);
+
+		if (property & vk::MemoryPropertyFlagBits::eHostVisible)
+		{
+			map = device.mapMemory(memory, 0, size);
+		}
+		else
+		{
+			map = nullptr;
+		}
+	}
+
+	uint32_t Buffer::queryBufferMemTypeIndex(uint32_t type, vk::MemoryPropertyFlags flag)
+	{
 		auto properties = Context::GetInstance().phyDevice.getMemoryProperties();
 		for (int i = 0; i < properties.memoryTypeCount; i++)
 		{
-			if ((1 << i) & requirements.memoryTypeBits
-				&& properties.memoryTypes[i].propertyFlags & property)
+			if ((1 << i) & type && properties.memoryTypes[i].propertyFlags & flag)
 			{
-				info.index = i;
-				break;
+				return i;
 			}
 		}
 
-		return info;
+		return 0;
 	}
 
+	Buffer::~Buffer()
+	{
+		auto& device = Context::GetInstance().device;
+		if (map)
+		{
+			device.unmapMemory(memory);
+		}
+		Context::GetInstance().device.freeMemory(memory);
+		Context::GetInstance().device.destroy(buffer);
+	}
 }

@@ -10,12 +10,14 @@ namespace toy2d
 	{
 		Context::Init(extensions, callback);
 		Context::GetInstance().InitSwapchain(windowWidth, windowHeight);
+		Context::GetInstance().initShaderModules();
 		Context::GetInstance().InitRenderProcess();
 		Context::GetInstance().InitGraphicsPipeline();
 		Context::GetInstance().swapchain->InitFramebuffers();
 		Context::GetInstance().InitCommandPool();
 
 		renderer_ = std::make_unique<Renderer>();
+		renderer_->SetProject(windowWidth, 0, 0, windowHeight, -1, 1);
 	}
 
 	void Quit() {

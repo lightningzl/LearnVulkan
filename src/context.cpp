@@ -1,5 +1,5 @@
 #include "toy2d/context.hpp"
-#include <vector>
+#include "toy2d/shader.hpp"
 
 namespace toy2d {
 
@@ -59,6 +59,7 @@ namespace toy2d {
 
 	Context::~Context() 
 	{
+		shader.reset();
 		commandManager.reset();
 		renderProcess.reset();
 		swapchain.reset();
@@ -73,14 +74,19 @@ namespace toy2d {
 
 	void Context::InitGraphicsPipeline()
 	{
-		auto vertexSource = ReadWholeFile("./vert.spv");
-		auto fragSource = ReadWholeFile("./frag.spv");
-		renderProcess->RecreateGraphicsPipeline(vertexSource, fragSource);
+		renderProcess->RecreateGraphicsPipeline(*shader);
 	}
 
 	void Context::InitCommandPool()
 	{
 		commandManager = std::make_unique<CommandManager>();
+	}
+
+	void Context::initShaderModules()
+	{
+		auto vertexSource = ReadWholeFile("./vert.spv");
+		auto fragSource = ReadWholeFile("./frag.spv");
+		shader = std::make_unique<Shader>(vertexSource, fragSource);
 	}
 
 	void Context::InitRenderProcess()

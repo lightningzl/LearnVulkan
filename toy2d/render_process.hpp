@@ -14,16 +14,14 @@ namespace toy2d
 		vk::Pipeline graphicsPipeline = nullptr;
 		vk::PipelineLayout layout = nullptr;
 		vk::RenderPass renderPass = nullptr;
-		vk::DescriptorSetLayout setLayout = nullptr;
 
-		void RecreateGraphicsPipeline(const std::vector<char>& vertexSource, const std::vector<char>& fragSource);
+		void RecreateGraphicsPipeline(const Shader& shader);
 		void RecreateRenderPass();
 
 	private:
 		vk::PipelineLayout createLayout();
-		vk::Pipeline createGraphicsPipeline(const std::vector<char>& vertexSource, const std::vector<char>& fragSource);
+		vk::Pipeline createGraphicsPipeline(const Shader& shader);
 		vk::RenderPass createRenderPass();
-		vk::DescriptorSetLayout createSetLayout();
 	};
 
 

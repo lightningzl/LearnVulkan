@@ -7,25 +7,20 @@ namespace toy2d
 	class Buffer
 	{
 	public:
-		Buffer(size_t size, vk::BufferUsageFlags usage, vk::MemoryPropertyFlags property);
+		Buffer(vk::BufferUsageFlags usage, size_t size, vk::MemoryPropertyFlags property);
 		~Buffer();
 
 		vk::Buffer buffer;
 		vk::DeviceMemory memory;
+		void* map;
 		size_t size;
+		size_t requireSize;
+
+		Buffer(const Buffer& buffer) = delete;
+		Buffer& operator=(const Buffer& buffer) = delete;
 
 	private:
-		struct MemoryInfo 
-		{
-			size_t size;
-			uint32_t index;
-		};
-
-		void createBuffer(size_t size, vk::BufferUsageFlags usage);
-		void allocateMemory(MemoryInfo info);
-		void bindMemory2Buffer();
-		MemoryInfo queryMemoryInfo(vk::MemoryPropertyFlags property);
-
+		uint32_t queryBufferMemTypeIndex(uint32_t type, vk::MemoryPropertyFlags flag);
 	};
 
 
