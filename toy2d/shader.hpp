@@ -14,6 +14,7 @@ namespace toy2d
 		vk::ShaderModule GetFragModule() const { return fragmentModule_; }
 
 		const std::vector<vk::DescriptorSetLayout>& GetDescriptorSetLayouts() const { return layouts_; }
+		vk::PushConstantRange GetPushConstantRange() const;
 
 	private:
 		vk::ShaderModule vertexModule_;

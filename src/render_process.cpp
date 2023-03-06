@@ -42,7 +42,9 @@ namespace toy2d
 	vk::PipelineLayout RenderProcess::createLayout()
 	{
 		vk::PipelineLayoutCreateInfo createInfo;
-		createInfo.setSetLayouts(Context::GetInstance().shader->GetDescriptorSetLayouts());
+		auto range = Context::GetInstance().shader->GetPushConstantRange();
+		createInfo.setSetLayouts(Context::GetInstance().shader->GetDescriptorSetLayouts())
+			.setPushConstantRanges(range);
 		return Context::GetInstance().device.createPipelineLayout(createInfo);
 	}
 

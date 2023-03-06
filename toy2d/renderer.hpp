@@ -22,7 +22,6 @@ namespace toy2d
 		{
 			Mat4 project;
 			Mat4 view;
-			Mat4 model;
 		};
 
 		int maxFlightCount_;
@@ -40,9 +39,8 @@ namespace toy2d
 		std::vector<std::unique_ptr<Buffer>> colorBuffers_;
 		std::vector<std::unique_ptr<Buffer>> deviceColorBuffers_;
 
-		vk::DescriptorPool descriptorPool1_;
-		vk::DescriptorPool descriptorPool2_;
-		std::pair<std::vector<vk::DescriptorSet>, std::vector<vk::DescriptorSet>> descriptorSets_;
+		vk::DescriptorPool descriptorPool_;
+		std::vector<vk::DescriptorSet> descriptorSets_;
 
 		void createFences();
 		void createSemaphores();
@@ -52,7 +50,7 @@ namespace toy2d
 		void bufferData();
 		void bufferVertexData();
 		void bufferIndicesData();
-		void bufferMVPData(const Mat4& model);
+		void bufferMVPData();
 		void initMats();
 		void createDescriptorPool(int flightCount);
 		void allocDescriptorSets(int flightCount);

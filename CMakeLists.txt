@@ -27,6 +27,7 @@ add_library(toy2d STATIC
     toy2d/command_manager.hpp
     toy2d/buffer.hpp
     toy2d/math.hpp
+    toy2d/stb_image.h
     # Source code files
     ${SRC}
 )

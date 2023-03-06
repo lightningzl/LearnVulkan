@@ -1,5 +1,6 @@
 #include "toy2d/shader.hpp"
 #include "toy2d/context.hpp"
+#include "toy2d/math.hpp"
 
 namespace toy2d
 {
@@ -30,22 +31,30 @@ namespace toy2d
 		device.destroyShaderModule(fragmentModule_);
 	}
 
+	vk::PushConstantRange Shader::GetPushConstantRange() const
+	{
+		vk::PushConstantRange range;
+		range.setOffset(0)
+			.setSize(sizeof(Mat4))
+			.setStageFlags(vk::ShaderStageFlagBits::eVertex);
+		return range;
+	}
+
 	void Shader::initDescriptorSetLayouts()
 	{
 		vk::DescriptorSetLayoutCreateInfo createInfo;
-		vk::DescriptorSetLayoutBinding binding;
-		binding.setBinding(0)
+		std::vector<vk::DescriptorSetLayoutBinding> bindings(2);
+		bindings[0].setBinding(0)
 			.setDescriptorType(vk::DescriptorType::eUniformBuffer)
 			.setStageFlags(vk::ShaderStageFlagBits::eVertex)
 			.setDescriptorCount(1);
-		createInfo.setBindings(binding);
-		layouts_.push_back(Context::GetInstance().device.createDescriptorSetLayout(createInfo));
 
-		binding.setBinding(0)
+		bindings[1].setBinding(1)
 			.setDescriptorType(vk::DescriptorType::eUniformBuffer)
 			.setStageFlags(vk::ShaderStageFlagBits::eFragment)
 			.setDescriptorCount(1);
-		createInfo.setBindings(binding);
+
+		createInfo.setBindings(bindings);
 		layouts_.push_back(Context::GetInstance().device.createDescriptorSetLayout(createInfo));
 	}
 }

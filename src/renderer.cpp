@@ -5,7 +5,7 @@
 
 namespace toy2d
 {
-	const size_t MVPSIZE = sizeof(float) * 4 * 4 * 3;
+	const size_t MVPSIZE = sizeof(float) * 4 * 4 * 2;
 	const size_t COLORSIZE = sizeof(float) * 3;
 
 	Renderer::Renderer(int maxFlightCount /*= 2*/)
@@ -29,8 +29,7 @@ namespace toy2d
 	Renderer::~Renderer()
 	{
 		auto& device = Context::GetInstance().device;
-		device.destroyDescriptorPool(descriptorPool1_);
-		device.destroyDescriptorPool(descriptorPool2_);
+		device.destroyDescriptorPool(descriptorPool_);
 		uniformBuffers_.clear();
 		deviceUniformBuffers_.clear();
 		colorBuffers_.clear();
@@ -54,6 +53,7 @@ namespace toy2d
 	void Renderer::SetProject(int right, int left, int bottom, int top, int far, int near)
 	{
 		projectMat_ = Mat4::CreateOrtho(left, right, top, bottom, near, far);
+		bufferMVPData();
 	}
 
 	void Renderer::DrawRect(const Rect& rect)
@@ -65,9 +65,6 @@ namespace toy2d
 			throw std::runtime_error("wait for fence failed");
 		}
 		device.resetFences(fences_[curFrame_]);
-
-		auto model = Mat4::CreateTranslate(rect.position).Mul(Mat4::CreateScale(rect.size));
-		bufferMVPData(model);
 
 		auto& swapchain = ctx.swapchain;
 		auto resultValue = device.acquireNextImageKHR(swapchain->swapchain, std::numeric_limits<uint64_t>::max(), imageAvliableSemaphores_[curFrame_], nullptr);
@@ -100,10 +97,10 @@ namespace toy2d
 
 				cmdBufs_[curFrame_].bindDescriptorSets(vk::PipelineBindPoint::eGraphics,
 					Context::GetInstance().renderProcess->layout,
-					0, descriptorSets_.first[curFrame_], {});
-				cmdBufs_[curFrame_].bindDescriptorSets(vk::PipelineBindPoint::eGraphics,
-					Context::GetInstance().renderProcess->layout,
-					1, descriptorSets_.second[curFrame_], {});
+					0, descriptorSets_[curFrame_], {});
+				auto model = Mat4::CreateTranslate(rect.position).Mul(Mat4::CreateScale(rect.size));
+				cmdBufs_[curFrame_].pushConstants(Context::GetInstance().renderProcess->layout,
+					vk::ShaderStageFlagBits::eVertex, 0, sizeof(Mat4), model.GetData());
 				cmdBufs_[curFrame_].drawIndexed(6, 1, 0, 0, 0);
 			}
 			cmdBufs_[curFrame_].endRenderPass();
@@ -255,12 +252,11 @@ namespace toy2d
 		memcpy(indicesBuffer_->map, indices, sizeof(indices));
 	}
 
-	void Renderer::bufferMVPData(const Mat4& model)
+	void Renderer::bufferMVPData()
 	{
 		MVP mvp;
 		mvp.project = projectMat_;
 		mvp.view = viewMat_;
-		mvp.model = model;
 		for (int i = 0; i < uniformBuffers_.size(); i++)
 		{
 			auto& buffer = uniformBuffers_[i];
@@ -284,28 +280,22 @@ namespace toy2d
 		std::vector<vk::DescriptorPoolSize> sizes(2, poolSize);
 		createInfo.setMaxSets(flightCount)
 			.setPoolSizes(sizes);
-		descriptorPool1_ = Context::GetInstance().device.createDescriptorPool(createInfo);
-		descriptorPool2_ = Context::GetInstance().device.createDescriptorPool(createInfo);
-
+		descriptorPool_ = Context::GetInstance().device.createDescriptorPool(createInfo);
 	}
 
 	void Renderer::allocDescriptorSets(int flightCount)
 	{
 		std::vector layouts(flightCount, Context::GetInstance().shader->GetDescriptorSetLayouts()[0]);
 		vk::DescriptorSetAllocateInfo allocInfo;
-		allocInfo.setDescriptorPool(descriptorPool1_)
-			.setSetLayouts(layouts);
-		descriptorSets_.first = Context::GetInstance().device.allocateDescriptorSets(allocInfo);
 
-		layouts = std::vector(flightCount, Context::GetInstance().shader->GetDescriptorSetLayouts()[1]);
-		allocInfo.setDescriptorPool(descriptorPool2_)
+		allocInfo.setDescriptorPool(descriptorPool_)
 			.setSetLayouts(layouts);
-		descriptorSets_.second = Context::GetInstance().device.allocateDescriptorSets(allocInfo);
+		descriptorSets_ = Context::GetInstance().device.allocateDescriptorSets(allocInfo);
 	}
 
 	void Renderer::updateDescriptorSets()
 	{
-		for (int i = 0; i < descriptorSets_.first.size(); i++)
+		for (int i = 0; i < descriptorSets_.size(); i++)
 		{
 			vk::DescriptorBufferInfo bufferInfo1;
 			bufferInfo1.setBuffer(deviceUniformBuffers_[i]->buffer)
@@ -316,7 +306,7 @@ namespace toy2d
 			writerInfos[0].setDescriptorType(vk::DescriptorType::eUniformBuffer)
 				.setBufferInfo(bufferInfo1)
 				.setDstBinding(0)
-				.setDstSet(descriptorSets_.first[i])
+				.setDstSet(descriptorSets_[i])
 				.setDstArrayElement(0)
 				.setDescriptorCount(1);
 
@@ -327,8 +317,8 @@ namespace toy2d
 
 			writerInfos[1].setDescriptorType(vk::DescriptorType::eUniformBuffer)
 				.setBufferInfo(bufferInfo2)
-				.setDstBinding(0)
-				.setDstSet(descriptorSets_.second[i])
+				.setDstBinding(1)
+				.setDstSet(descriptorSets_[i])
 				.setDstArrayElement(0)
 				.setDescriptorCount(1);
 
