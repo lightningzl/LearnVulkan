@@ -38,6 +38,27 @@ namespace toy2d
 		Context::GetInstance().device.freeCommandBuffers(pool_, buffer);
 	}
 
+	void CommandManager::ExecuteCmd(vk::Queue queue, RecordCmdFunc func)
+	{
+		auto cmdBuf = CreateOneCommandBuffer();
+
+		vk::CommandBufferBeginInfo begin;
+		begin.setFlags(vk::CommandBufferUsageFlagBits::eOneTimeSubmit);
+		cmdBuf.begin(begin);
+		if (func)
+		{
+			func(cmdBuf);
+		}
+		cmdBuf.end();
+
+		vk::SubmitInfo submit;
+		submit.setCommandBuffers(cmdBuf);
+		queue.submit(submit);
+		queue.waitIdle();
+		Context::GetInstance().device.waitIdle();
+		FreeCmd(cmdBuf);
+	}
+
 	vk::CommandPool CommandManager::createCommandPool()
 	{
 		auto& ctxInstance = Context::GetInstance();

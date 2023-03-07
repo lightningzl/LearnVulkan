@@ -20,8 +20,14 @@ namespace toy2d
 			};
 		};
 
-		static vk::VertexInputAttributeDescription GetAttributeDescription();
-		static vk::VertexInputBindingDescription GetBingDescription();
+		static std::vector<vk::VertexInputAttributeDescription> GetAttributeDescription();
+		static std::vector<vk::VertexInputBindingDescription> GetBingDescription();
+	};
+
+	struct Vertex
+	{
+		Vec position;
+		Vec texcoord;
 	};
 
 	struct Color

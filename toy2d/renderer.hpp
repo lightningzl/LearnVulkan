@@ -3,6 +3,7 @@
 #include "vulkan/vulkan.hpp"
 #include "buffer.hpp"
 #include "math.hpp"
+#include "texture.hpp"
 
 namespace toy2d
 {
@@ -42,6 +43,9 @@ namespace toy2d
 		vk::DescriptorPool descriptorPool_;
 		std::vector<vk::DescriptorSet> descriptorSets_;
 
+		std::unique_ptr<Texture> texture;
+		vk::Sampler sampler;
+
 		void createFences();
 		void createSemaphores();
 		void createCmdBuffers();
@@ -56,5 +60,7 @@ namespace toy2d
 		void allocDescriptorSets(int flightCount);
 		void updateDescriptorSets();
 		void transformBuffer2Device(Buffer& src, Buffer& dst, size_t srcOffset, size_t dstOffset, size_t size);
+		void createSampler();
+		void createTexture();
 	};
 }

@@ -18,6 +18,8 @@ namespace toy2d
 		bufferVertexData();
 		createUniformBuffers(maxFlightCount);
 		bufferData();
+		createTexture();
+		createSampler();
 		createDescriptorPool(maxFlightCount);
 		allocDescriptorSets(maxFlightCount);
 		updateDescriptorSets();
@@ -29,6 +31,8 @@ namespace toy2d
 	Renderer::~Renderer()
 	{
 		auto& device = Context::GetInstance().device;
+		device.destroySampler(sampler);
+		texture.reset();
 		device.destroyDescriptorPool(descriptorPool_);
 		uniformBuffers_.clear();
 		deviceUniformBuffers_.clear();
@@ -182,7 +186,7 @@ namespace toy2d
 	void Renderer::createBuffers()
 	{
 		verticesBuffer_.reset(new Buffer(vk::BufferUsageFlagBits::eVertexBuffer,
-			sizeof(float) * 8,
+			sizeof(Vertex) * 4,
 			vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent));
 		indicesBuffer_.reset(new Buffer(vk::BufferUsageFlagBits::eIndexBuffer,
 			sizeof(float) * 6,
@@ -232,12 +236,12 @@ namespace toy2d
 
 	void Renderer::bufferVertexData()
 	{
-		Vec vertices[] = 
+		Vertex vertices[] =
 		{
-			Vec{{-0.5, -0.5}},
-			Vec{{0.5, -0.5}},
-			Vec{{0.5, 0.5}},
-			Vec{{-0.5, 0.5}},
+			{Vec{-0.5, -0.5},	Vec{0, 0}},
+			{Vec{0.5, -0.5},	Vec{1, 0}},
+			{Vec{0.5, 0.5},		Vec{1, 1}},
+			{Vec{-0.5, 0.5},	Vec{0, 1}},
 		};
 		memcpy(verticesBuffer_->map, vertices, sizeof(vertices));
 	}
@@ -274,10 +278,11 @@ namespace toy2d
 	void Renderer::createDescriptorPool(int flightCount)
 	{
 		vk::DescriptorPoolCreateInfo createInfo;
-		vk::DescriptorPoolSize poolSize;
-		poolSize.setType(vk::DescriptorType::eUniformBuffer)
+		std::vector<vk::DescriptorPoolSize> sizes(2);
+		sizes[0].setType(vk::DescriptorType::eUniformBuffer)
+			.setDescriptorCount(flightCount * 2);
+		sizes[1].setType(vk::DescriptorType::eCombinedImageSampler)
 			.setDescriptorCount(flightCount);
-		std::vector<vk::DescriptorPoolSize> sizes(2, poolSize);
 		createInfo.setMaxSets(flightCount)
 			.setPoolSizes(sizes);
 		descriptorPool_ = Context::GetInstance().device.createDescriptorPool(createInfo);
@@ -302,7 +307,7 @@ namespace toy2d
 				.setOffset(0)
 				.setRange(MVPSIZE);
 
-			std::vector<vk::WriteDescriptorSet> writerInfos(2);
+			std::vector<vk::WriteDescriptorSet> writerInfos(3);
 			writerInfos[0].setDescriptorType(vk::DescriptorType::eUniformBuffer)
 				.setBufferInfo(bufferInfo1)
 				.setDstBinding(0)
@@ -322,32 +327,53 @@ namespace toy2d
 				.setDstArrayElement(0)
 				.setDescriptorCount(1);
 
+			vk::DescriptorImageInfo imageInfo;
+			imageInfo.setImageLayout(vk::ImageLayout::eShaderReadOnlyOptimal)
+				.setImageView(texture->view)
+				.setSampler(sampler);
+
+			writerInfos[2].setDescriptorType(vk::DescriptorType::eCombinedImageSampler)
+				.setImageInfo(imageInfo)
+				.setDstBinding(2)
+				.setDstSet(descriptorSets_[i])
+				.setDstArrayElement(0)
+				.setDescriptorCount(1);
+
 			Context::GetInstance().device.updateDescriptorSets(writerInfos, {});
 		}
 	}
 
 	void Renderer::transformBuffer2Device(Buffer& src, Buffer& dst, size_t srcOffset, size_t dstOffset, size_t size)
 	{
-		auto cmdBuf = Context::GetInstance().commandManager->CreateOneCommandBuffer();
+		Context::GetInstance().commandManager->ExecuteCmd(Context::GetInstance().graphcisQueue,
+			[&](vk::CommandBuffer cmdBuf){
+				vk::BufferCopy region;
+				region.setSize(size)
+					.setSrcOffset(srcOffset)
+					.setDstOffset(dstOffset);
+				cmdBuf.copyBuffer(src.buffer, dst.buffer, region);
+			});
+	}
 
-		vk::CommandBufferBeginInfo begin;
-		begin.setFlags(vk::CommandBufferUsageFlagBits::eOneTimeSubmit);
-		cmdBuf.begin(begin);
-		{
-			vk::BufferCopy region;
-			region.setSize(size)
-				.setSrcOffset(srcOffset)
-				.setDstOffset(dstOffset);
-			cmdBuf.copyBuffer(src.buffer, dst.buffer, region);
-		}
-		cmdBuf.end();
+	void Renderer::createSampler()
+	{
+		vk::SamplerCreateInfo createInfo;
+		createInfo.setMagFilter(vk::Filter::eLinear)
+			.setMinFilter(vk::Filter::eLinear)
+			.setAddressModeU(vk::SamplerAddressMode::eRepeat)
+			.setAddressModeV(vk::SamplerAddressMode::eRepeat)
+			.setAddressModeW(vk::SamplerAddressMode::eRepeat)
+			.setAnisotropyEnable(false)
+			.setBorderColor(vk::BorderColor::eIntOpaqueBlack)
+			.setUnnormalizedCoordinates(false)
+			.setCompareEnable(false)
+			.setMipmapMode(vk::SamplerMipmapMode::eLinear);
+		sampler = Context::GetInstance().device.createSampler(createInfo);
+	}
 
-		vk::SubmitInfo submit;
-		submit.setCommandBuffers(cmdBuf);
-		Context::GetInstance().graphcisQueue.submit(submit);
-		Context::GetInstance().graphcisQueue.waitIdle();
-		Context::GetInstance().device.waitIdle();
-		Context::GetInstance().commandManager->FreeCmd(cmdBuf);
+	void Renderer::createTexture()
+	{
+		texture = std::make_unique<Texture>("resources/texture.jpg");
 	}
 
 }

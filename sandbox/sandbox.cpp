@@ -45,7 +45,7 @@ int main(int argc, char** argv) {
 
     float x = 100, y = 100;
 
-    renderer->SetDrawColor(toy2d::Color{ 0, 1, 0 });
+    renderer->SetDrawColor(toy2d::Color{ 1, 1, 1 });
 
     while (!shouldClose) {
         while (SDL_PollEvent(&event)) {

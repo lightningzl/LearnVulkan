@@ -17,7 +17,7 @@ namespace toy2d
 		auto requirements = Context::GetInstance().device.getBufferMemoryRequirements(buffer);
 		requireSize = requirements.size;
 
-		auto index = queryBufferMemTypeIndex(requirements.memoryTypeBits, property);
+		auto index = QueryBufferMemTypeIndex(requirements.memoryTypeBits, property);
 
 		vk::MemoryAllocateInfo allocInfo;
 		allocInfo.setMemoryTypeIndex(index)
@@ -36,7 +36,18 @@ namespace toy2d
 		}
 	}
 
-	uint32_t Buffer::queryBufferMemTypeIndex(uint32_t type, vk::MemoryPropertyFlags flag)
+	Buffer::~Buffer()
+	{
+		auto& device = Context::GetInstance().device;
+		if (map)
+		{
+			device.unmapMemory(memory);
+		}
+		Context::GetInstance().device.freeMemory(memory);
+		Context::GetInstance().device.destroy(buffer);
+	}
+
+	std::uint32_t QueryBufferMemTypeIndex(std::uint32_t type, vk::MemoryPropertyFlags flag)
 	{
 		auto properties = Context::GetInstance().phyDevice.getMemoryProperties();
 		for (int i = 0; i < properties.memoryTypeCount; i++)
@@ -48,16 +59,5 @@ namespace toy2d
 		}
 
 		return 0;
-	}
-
-	Buffer::~Buffer()
-	{
-		auto& device = Context::GetInstance().device;
-		if (map)
-		{
-			device.unmapMemory(memory);
-		}
-		Context::GetInstance().device.freeMemory(memory);
-		Context::GetInstance().device.destroy(buffer);
 	}
 }

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "vulkan/vulkan.hpp"
+#include <functional>
 
 namespace toy2d
 {
@@ -8,6 +9,8 @@ namespace toy2d
 	class CommandManager
 	{
 	public:
+		using RecordCmdFunc = std::function<void(vk::CommandBuffer&)>;
+
 		CommandManager();
 		~CommandManager();
 
@@ -16,6 +19,7 @@ namespace toy2d
 		void ResetCmds();
 		void FreeCmd(vk::CommandBuffer buffer);
 
+		void ExecuteCmd(vk::Queue queue, RecordCmdFunc func);
 	private:
 		vk::CommandPool pool_;
 
