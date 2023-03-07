@@ -99,12 +99,25 @@ namespace toy2d
 		// 6.depth and stencil test
 
 		// 7.color blending
+		/*
+		 * newRGB = (srcFactor * srcRGB) <op> (dstFactor * dstRGB)
+		 * newA = (srcFactor * srcA) <op> (dstFactor * dstA)
+		 *
+		 * newRGB = 1 * srcRGB + (1 - srcA) * dstRGB
+		 * newA = srcA === 1 * srcA + 0 * dstA
+		 */
 		vk::PipelineColorBlendAttachmentState attachState;
-		attachState.setBlendEnable(false)
+		attachState.setBlendEnable(true)
 			.setColorWriteMask(vk::ColorComponentFlagBits::eR
 				| vk::ColorComponentFlagBits::eG
 				| vk::ColorComponentFlagBits::eB
-				| vk::ColorComponentFlagBits::eA);
+				| vk::ColorComponentFlagBits::eA)
+			.setSrcColorBlendFactor(vk::BlendFactor::eOne)
+			.setColorBlendOp(vk::BlendOp::eAdd)
+			.setDstColorBlendFactor(vk::BlendFactor::eOneMinusConstantAlpha)
+			.setSrcAlphaBlendFactor(vk::BlendFactor::eOne)
+			.setAlphaBlendOp(vk::BlendOp::eAdd)
+			.setDstAlphaBlendFactor(vk::BlendFactor::eZero);
 
 		vk::PipelineColorBlendStateCreateInfo blendInfo;
 		blendInfo.setLogicOpEnable(false)

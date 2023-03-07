@@ -7,7 +7,6 @@
 
 namespace toy2d
 {
-
 	Texture::Texture(std::string_view filename)
 	{
 		int w, h, channel;
@@ -32,6 +31,10 @@ namespace toy2d
 		createImageView();
 
 		stbi_image_free(pixels);
+
+		set = DescriptorSetManager::Instance().AllocImageSet();
+
+		updataDescriptorSet();
 	}
 
 	Texture::~Texture()
@@ -156,6 +159,51 @@ namespace toy2d
 					.setImageSubresource(subsource);
 				cmdBuf.copyBufferToImage(buffer.buffer, image, vk::ImageLayout::eTransferDstOptimal, region);
 			});
+	}
+
+	void Texture::updataDescriptorSet()
+	{
+		vk::WriteDescriptorSet writer;
+		vk::DescriptorImageInfo imageInfo;
+		imageInfo.setImageLayout(vk::ImageLayout::eShaderReadOnlyOptimal)
+			.setImageView(view)
+			.setSampler(Context::GetInstance().sampler);
+
+		writer.setDescriptorType(vk::DescriptorType::eCombinedImageSampler)
+			.setImageInfo(imageInfo)
+			.setDstBinding(0)
+			.setDstSet(set.set)
+			.setDstArrayElement(0)
+			.setDescriptorCount(1);
+
+		Context::GetInstance().device.updateDescriptorSets(writer, {});
+	}
+
+	std::unique_ptr<TextureManager> TextureManager::instance_ = nullptr;
+
+	Texture* TextureManager::Load(const std::string& filename)
+	{
+		datas_.push_back(std::unique_ptr<Texture>(new Texture(filename)));
+		return datas_.back().get();
+	}
+
+	void TextureManager::Destroy(Texture* texture)
+	{
+		auto it = std::find_if(datas_.begin(), datas_.end(), [&](const std::unique_ptr<Texture>& t)
+			{
+				return t.get() == texture;
+			});
+		if (it != datas_.end())
+		{
+			Context::GetInstance().device.waitIdle();
+			datas_.erase(it);
+			return;
+		}
+	}
+
+	void TextureManager::Clear()
+	{
+		datas_.clear();
 	}
 
 }

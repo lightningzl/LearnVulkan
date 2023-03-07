@@ -15,14 +15,19 @@ namespace toy2d
 		Context::GetInstance().InitGraphicsPipeline();
 		Context::GetInstance().swapchain->InitFramebuffers();
 		Context::GetInstance().InitCommandPool();
+		Context::GetInstance().initSampler();
 
-		renderer_ = std::make_unique<Renderer>();
+		int maxFlightCount = 2;
+		DescriptorSetManager::Init(maxFlightCount);
+		renderer_ = std::make_unique<Renderer>(maxFlightCount);
 		renderer_->SetProject(windowWidth, 0, 0, windowHeight, -1, 1);
 	}
 
 	void Quit() {
 		Context::GetInstance().device.waitIdle();
 		renderer_.reset();
+		TextureManager::Instance().Clear();
+		DescriptorSetManager::Quit();
 		Context::Quit();
 	}
 
@@ -30,4 +35,15 @@ namespace toy2d
 	{
 		return renderer_.get();
 	}
+
+	Texture* LoadTexture(const std::string& filename)
+	{
+		return TextureManager::Instance().Load(filename);
+	}
+
+	void DestroyTexture(Texture* texture)
+	{
+		TextureManager::Instance().Destroy(texture);
+	}
+
 }

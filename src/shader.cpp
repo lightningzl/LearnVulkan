@@ -43,7 +43,7 @@ namespace toy2d
 	void Shader::initDescriptorSetLayouts()
 	{
 		vk::DescriptorSetLayoutCreateInfo createInfo;
-		std::vector<vk::DescriptorSetLayoutBinding> bindings(3);
+		std::vector<vk::DescriptorSetLayoutBinding> bindings(2);
 		bindings[0].setBinding(0)
 			.setDescriptorType(vk::DescriptorType::eUniformBuffer)
 			.setStageFlags(vk::ShaderStageFlagBits::eVertex)
@@ -54,7 +54,11 @@ namespace toy2d
 			.setStageFlags(vk::ShaderStageFlagBits::eFragment)
 			.setDescriptorCount(1);
 
-		bindings[2].setBinding(2)
+		createInfo.setBindings(bindings);
+		layouts_.push_back(Context::GetInstance().device.createDescriptorSetLayout(createInfo));
+
+		bindings.resize(1);
+		bindings[0].setBinding(0)
 			.setDescriptorType(vk::DescriptorType::eCombinedImageSampler)
 			.setStageFlags(vk::ShaderStageFlagBits::eFragment)
 			.setDescriptorCount(1);

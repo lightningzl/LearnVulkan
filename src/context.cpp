@@ -59,6 +59,7 @@ namespace toy2d {
 
 	Context::~Context() 
 	{
+		device.destroySampler(sampler);
 		shader.reset();
 		commandManager.reset();
 		renderProcess.reset();
@@ -87,6 +88,22 @@ namespace toy2d {
 		auto vertexSource = ReadWholeFile("./vert.spv");
 		auto fragSource = ReadWholeFile("./frag.spv");
 		shader = std::make_unique<Shader>(vertexSource, fragSource);
+	}
+
+	void Context::initSampler()
+	{
+		vk::SamplerCreateInfo createInfo;
+		createInfo.setMagFilter(vk::Filter::eLinear)
+			.setMinFilter(vk::Filter::eLinear)
+			.setAddressModeU(vk::SamplerAddressMode::eRepeat)
+			.setAddressModeV(vk::SamplerAddressMode::eRepeat)
+			.setAddressModeW(vk::SamplerAddressMode::eRepeat)
+			.setAnisotropyEnable(false)
+			.setBorderColor(vk::BorderColor::eIntOpaqueBlack)
+			.setUnnormalizedCoordinates(false)
+			.setCompareEnable(false)
+			.setMipmapMode(vk::SamplerMipmapMode::eLinear);
+		sampler = Context::GetInstance().device.createSampler(createInfo);
 	}
 
 	void Context::InitRenderProcess()

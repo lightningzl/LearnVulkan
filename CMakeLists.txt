@@ -29,6 +29,7 @@ add_library(toy2d STATIC
     toy2d/math.hpp
     toy2d/stb_image.h
     toy2d/texture.hpp
+    toy2d/descriptor_manager.hpp
     # Source code files
     ${SRC}
 )
