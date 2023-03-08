@@ -11,30 +11,19 @@ namespace toy2d
 	{
 		int w, h, channel;
 		stbi_uc* pixels = stbi_load(filename.data(), &w, &h, &channel, STBI_rgb_alpha);
-		size_t size = w * h * 4;
 		if (!pixels)
 		{
 			throw std::runtime_error("image load failed");
 		}
 
-		std::unique_ptr<Buffer> buffer = std::make_unique<Buffer>(vk::BufferUsageFlagBits::eTransferSrc, size, vk::MemoryPropertyFlagBits::eHostCached | vk::MemoryPropertyFlagBits::eHostVisible);
-		memcpy(buffer->map, pixels, size);
-
-		createImage(w, h);
-		allocMemory();
-		Context::GetInstance().device.bindImageMemory(image, memory, 0);
-
-		transitionImageLayoutFromUndefine2Dst();
-		transformData2Image(*buffer, w, h);
-		transitionImageLayoutFromDst2Optimal();
-
-		createImageView();
+		init(pixels, w, h);
 
 		stbi_image_free(pixels);
+	}
 
-		set = DescriptorSetManager::Instance().AllocImageSet();
-
-		updataDescriptorSet();
+	Texture::Texture(void* data, uint32_t w, uint32_t h)
+	{
+		init(data, w, h);
 	}
 
 	Texture::~Texture()
@@ -89,11 +78,6 @@ namespace toy2d
 		allocInfo.setMemoryTypeIndex(index);
 
 		memory = device.allocateMemory(allocInfo);
-	}
-
-	uint32_t Texture::queryImageMemoryIndex()
-	{
-		return 0;
 	}
 
 	void Texture::transitionImageLayoutFromUndefine2Dst()
@@ -179,11 +163,39 @@ namespace toy2d
 		Context::GetInstance().device.updateDescriptorSets(writer, {});
 	}
 
+	void Texture::init(void* data, uint32_t w, uint32_t h)
+	{
+
+		const uint32_t size = w * h * 4;
+		std::unique_ptr<Buffer> buffer = std::make_unique<Buffer>(vk::BufferUsageFlagBits::eTransferSrc, size, vk::MemoryPropertyFlagBits::eHostCached | vk::MemoryPropertyFlagBits::eHostVisible);
+		memcpy(buffer->map, data, size);
+
+		createImage(w, h);
+		allocMemory();
+		Context::GetInstance().device.bindImageMemory(image, memory, 0);
+
+		transitionImageLayoutFromUndefine2Dst();
+		transformData2Image(*buffer, w, h);
+		transitionImageLayoutFromDst2Optimal();
+
+		createImageView();
+
+		set = DescriptorSetManager::Instance().AllocImageSet();
+
+		updataDescriptorSet();
+	}
+
 	std::unique_ptr<TextureManager> TextureManager::instance_ = nullptr;
 
 	Texture* TextureManager::Load(const std::string& filename)
 	{
 		datas_.push_back(std::unique_ptr<Texture>(new Texture(filename)));
+		return datas_.back().get();
+	}
+
+	Texture* TextureManager::Create(void* data, uint32_t w, uint32_t h)
+	{
+		datas_.push_back(std::unique_ptr<Texture>(new Texture(data, w, h)));
 		return datas_.back().get();
 	}
 

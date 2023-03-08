@@ -10,7 +10,7 @@ namespace toy2d
 	{
 		layout = createLayout();
 		CreateRenderPass();
-		graphicsPipeline = nullptr;
+		pipelineCache_ = createPipelineCache();
 	}
 
 	RenderProcess::~RenderProcess()
@@ -18,12 +18,15 @@ namespace toy2d
 		auto& device = Context::GetInstance().device;
 		device.destroyRenderPass(renderPass);
 		device.destroyPipelineLayout(layout);
-		device.destroyPipeline(graphicsPipeline);
+		device.destroyPipeline(graphicsPipelineWithTriangleTopology);
+		device.destroyPipeline(graphicsPipelineWithLineTopology);
+		device.destroyPipelineCache(pipelineCache_);
 	}
 
 	void RenderProcess::CreateGraphicsPipeline(const Shader& shader)
 	{
-		graphicsPipeline = createGraphicsPipeline(shader);
+		graphicsPipelineWithTriangleTopology = createGraphicsPipeline(shader, vk::PrimitiveTopology::eTriangleList);
+		graphicsPipelineWithLineTopology = createGraphicsPipeline(shader, vk::PrimitiveTopology::eLineList);
 	}
 
 	void RenderProcess::CreateRenderPass()
@@ -40,7 +43,7 @@ namespace toy2d
 		return Context::GetInstance().device.createPipelineLayout(createInfo);
 	}
 
-	vk::Pipeline RenderProcess::createGraphicsPipeline(const Shader& shader)
+	vk::Pipeline RenderProcess::createGraphicsPipeline(const Shader& shader, vk::PrimitiveTopology topology)
 	{
 		auto& context = Context::GetInstance();
 
@@ -65,7 +68,7 @@ namespace toy2d
 		// 2.Vertex Assembly
 		vk::PipelineInputAssemblyStateCreateInfo inputAsm;
 		inputAsm.setPrimitiveRestartEnable(false)
-			.setTopology(vk::PrimitiveTopology::eTriangleList);
+			.setTopology(topology);
 
 		// 3.Viewport and scissor
 		vk::PipelineViewportStateCreateInfo viewportState;
@@ -115,11 +118,6 @@ namespace toy2d
 		blendInfo.setLogicOpEnable(false)
 			.setAttachments(attachState);
 
-		// dynamic changing state of pipeline
-		vk::PipelineDynamicStateCreateInfo dynamicState;
-		std::array states = { vk::DynamicState::eViewport, vk::DynamicState::eScissor };
-		dynamicState.setDynamicStates(states);
-
 		// 8.create graphics pipeline
 		createInfo.setPVertexInputState(&inputState)
 			.setPInputAssemblyState(&inputAsm)
@@ -130,9 +128,8 @@ namespace toy2d
 			.setPColorBlendState(&blendInfo)
 			.setRenderPass(renderPass)
 			.setLayout(layout);
-			//.setPDynamicState(&dynamicState);
 
-		auto result = Context::GetInstance().device.createGraphicsPipeline(nullptr, createInfo);
+		auto result = Context::GetInstance().device.createGraphicsPipeline(pipelineCache_, createInfo);
 		if (result.result != vk::Result::eSuccess)
 		{
 			throw std::runtime_error("create graphics pipline failed");
@@ -174,6 +171,14 @@ namespace toy2d
 			.setDependencies(dependency);
 
 		return Context::GetInstance().device.createRenderPass(createInfo);
+	}
+
+	vk::PipelineCache RenderProcess::createPipelineCache()
+	{
+		vk::PipelineCacheCreateInfo createInfo;
+		createInfo.setInitialDataSize(0);
+
+		return Context::GetInstance().device.createPipelineCache(createInfo);
 	}
 
 }

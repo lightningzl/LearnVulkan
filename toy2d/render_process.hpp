@@ -11,7 +11,8 @@ namespace toy2d
 		RenderProcess();
 		~RenderProcess();
 
-		vk::Pipeline graphicsPipeline = nullptr;
+		vk::Pipeline graphicsPipelineWithTriangleTopology = nullptr;
+		vk::Pipeline graphicsPipelineWithLineTopology = nullptr;
 		vk::PipelineLayout layout = nullptr;
 		vk::RenderPass renderPass = nullptr;
 
@@ -19,9 +20,12 @@ namespace toy2d
 		void CreateRenderPass();
 
 	private:
+		vk::PipelineCache pipelineCache_ = nullptr;
+
 		vk::PipelineLayout createLayout();
-		vk::Pipeline createGraphicsPipeline(const Shader& shader);
+		vk::Pipeline createGraphicsPipeline(const Shader& shader, vk::PrimitiveTopology topology);
 		vk::RenderPass createRenderPass();
+		vk::PipelineCache createPipelineCache();
 	};
 
 

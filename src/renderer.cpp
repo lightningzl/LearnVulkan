@@ -15,12 +15,11 @@ namespace toy2d
 		createSemaphores();
 		createCmdBuffers();
 		createBuffers();
-		bufferVertexData();
 		createUniformBuffers(maxFlightCount);
-		bufferData();
 		descriptorSets_ = DescriptorSetManager::Instance().AllocBufferSets(maxFlightCount);
 		updateDescriptorSets();
 		initMats();
+		createWhiteTexture();
 
 		SetDrawColor(Color{ 0, 0, 0 });
 	}
@@ -32,8 +31,9 @@ namespace toy2d
 		deviceUniformBuffers_.clear();
 		colorBuffers_.clear();
 		deviceColorBuffers_.clear();
-		verticesBuffer_.reset();
-		indicesBuffer_.reset();
+		rectVerticesBuffer_.reset();
+		rectIndicesBuffer_.reset();
+		lineVerticesBuffer_.reset();
 		for (auto& sem : imageAvliableSemaphores_)
 		{
 			device.destroySemaphore(sem);
@@ -54,16 +54,35 @@ namespace toy2d
 		bufferMVPData();
 	}
 
-	void Renderer::DrawTexture(const Rect& rect, Texture& texture)
+	void Renderer::DrawRect(const Rect& rect, Texture& texture)
 	{
+		auto& ctx = Context::GetInstance();
+		bufferRectData();
+
+		cmdBufs_[curFrame_].bindPipeline(vk::PipelineBindPoint::eGraphics, ctx.renderProcess->graphicsPipelineWithTriangleTopology);
 		vk::DeviceSize offset = 0;
-		cmdBufs_[curFrame_].bindVertexBuffers(0, verticesBuffer_->buffer, offset);
-		cmdBufs_[curFrame_].bindIndexBuffer(indicesBuffer_->buffer, 0, vk::IndexType::eUint32);
-		auto layout = Context::GetInstance().renderProcess->layout;
+		cmdBufs_[curFrame_].bindVertexBuffers(0, rectVerticesBuffer_->buffer, offset);
+		cmdBufs_[curFrame_].bindIndexBuffer(rectIndicesBuffer_->buffer, 0, vk::IndexType::eUint32);
+		auto layout = ctx.renderProcess->layout;
 		cmdBufs_[curFrame_].bindDescriptorSets(vk::PipelineBindPoint::eGraphics, layout, 0, { descriptorSets_[curFrame_].set, texture.set.set }, {});
 		auto model = Mat4::CreateTranslate(rect.position).Mul(Mat4::CreateScale(rect.size));
 		cmdBufs_[curFrame_].pushConstants(layout, vk::ShaderStageFlagBits::eVertex, 0, sizeof(Mat4), model.GetData());
 		cmdBufs_[curFrame_].drawIndexed(6, 1, 0, 0, 0);
+	}
+
+	void Renderer::DrawLine(const Vec& p1, const Vec& p2)
+	{
+		auto& ctx = Context::GetInstance();
+		bufferLineData(p1, p2);
+
+		cmdBufs_[curFrame_].bindPipeline(vk::PipelineBindPoint::eGraphics, ctx.renderProcess->graphicsPipelineWithLineTopology);
+		vk::DeviceSize offset = 0;
+		cmdBufs_[curFrame_].bindVertexBuffers(0, lineVerticesBuffer_->buffer, offset);
+		auto layout = ctx.renderProcess->layout;
+		cmdBufs_[curFrame_].bindDescriptorSets(vk::PipelineBindPoint::eGraphics, layout, 0, { descriptorSets_[curFrame_].set, whiteTexture->set.set }, {});
+		auto model = Mat4::CreateIdentity();
+		cmdBufs_[curFrame_].pushConstants(layout, vk::ShaderStageFlagBits::eVertex, 0, sizeof(Mat4), model.GetData());
+		cmdBufs_[curFrame_].drawIndexed(2, 1, 0, 0, 0);
 	}
 
 	void Renderer::SetDrawColor(const Color& color)
@@ -109,7 +128,6 @@ namespace toy2d
 			.setFramebuffer(swapchain->framebuffers[imageIndex_])
 			.setClearValues(clearValue);
 		cmdBufs_[curFrame_].beginRenderPass(&renderPassBegin, vk::SubpassContents::eInline);
-		cmdBufs_[curFrame_].bindPipeline(vk::PipelineBindPoint::eGraphics, ctx.renderProcess->graphicsPipeline);
 	}
 
 	void Renderer::EndRender()
@@ -183,11 +201,14 @@ namespace toy2d
 
 	void Renderer::createBuffers()
 	{
-		verticesBuffer_.reset(new Buffer(vk::BufferUsageFlagBits::eVertexBuffer,
+		rectVerticesBuffer_.reset(new Buffer(vk::BufferUsageFlagBits::eVertexBuffer,
 			sizeof(Vertex) * 4,
 			vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent));
-		indicesBuffer_.reset(new Buffer(vk::BufferUsageFlagBits::eIndexBuffer,
-			sizeof(float) * 6,
+		rectIndicesBuffer_.reset(new Buffer(vk::BufferUsageFlagBits::eIndexBuffer,
+			sizeof(uint32_t) * 6,
+			vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent));
+		lineVerticesBuffer_.reset(new Buffer(vk::BufferUsageFlagBits::eVertexBuffer,
+			sizeof(Vertex) * 2,
 			vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent));
 	}
 
@@ -226,13 +247,13 @@ namespace toy2d
 		}
 	}
 
-	void Renderer::bufferData()
+	void Renderer::bufferRectData()
 	{
-		bufferVertexData();
-		bufferIndicesData();
+		bufferRectVertexData();
+		bufferRectIndicesData();
 	}
 
-	void Renderer::bufferVertexData()
+	void Renderer::bufferRectVertexData()
 	{
 		Vertex vertices[] =
 		{
@@ -241,17 +262,27 @@ namespace toy2d
 			{Vec{0.5, 0.5},		Vec{1, 1}},
 			{Vec{-0.5, 0.5},	Vec{0, 1}},
 		};
-		memcpy(verticesBuffer_->map, vertices, sizeof(vertices));
+		memcpy(rectVerticesBuffer_->map, vertices, sizeof(vertices));
 	}
 
-	void Renderer::bufferIndicesData()
+	void Renderer::bufferRectIndicesData()
 	{
 		uint32_t indices[] = 
 		{
 			0, 1, 3,
 			1, 2, 3,
 		};
-		memcpy(indicesBuffer_->map, indices, sizeof(indices));
+		memcpy(rectIndicesBuffer_->map, indices, sizeof(indices));
+	}
+
+	void Renderer::bufferLineData(const Vec& p1, const Vec& p2)
+	{
+		Vertex vertices[] =
+		{
+			{p1,	Vec{0, 0}},
+			{p2,	Vec{0, 0}},
+		};
+		memcpy(lineVerticesBuffer_->map, vertices, sizeof(vertices));
 	}
 
 	void Renderer::bufferMVPData()
@@ -317,6 +348,12 @@ namespace toy2d
 					.setDstOffset(dstOffset);
 				cmdBuf.copyBuffer(src.buffer, dst.buffer, region);
 			});
+	}
+
+	void Renderer::createWhiteTexture()
+	{
+		unsigned char data[] = { 0xFF, 0xFF, 0xFF, 0xFF };
+		whiteTexture = TextureManager::Instance().Create(data, 1, 1);
 	}
 
 }
