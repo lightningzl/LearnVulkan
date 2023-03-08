@@ -15,8 +15,8 @@ namespace toy2d
 		vk::PipelineLayout layout = nullptr;
 		vk::RenderPass renderPass = nullptr;
 
-		void RecreateGraphicsPipeline(const Shader& shader);
-		void RecreateRenderPass();
+		void CreateGraphicsPipeline(const Shader& shader);
+		void CreateRenderPass();
 
 	private:
 		vk::PipelineLayout createLayout();

@@ -11,7 +11,7 @@ int main(int argc, char** argv) {
     SDL_Window* window = SDL_CreateWindow("sandbox",
                                           SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
                                           1024, 720,
-                                          SDL_WINDOW_SHOWN|SDL_WINDOW_VULKAN);
+                                          SDL_WINDOW_SHOWN | SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE);
     if (!window) {
         SDL_Log("create window failed");
         exit(2);
@@ -79,6 +79,13 @@ int main(int argc, char** argv) {
 					renderer->SetDrawColor(toy2d::Color{ 0, 0, 1 });
 				}
 			}
+            if (event.type == SDL_WINDOWEVENT)
+            {
+                if (event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED)
+                {
+                    toy2d::ResizeSwapchainImage(event.window.data1, event.window.data2);
+                }
+            }
         }
         renderer->StartRender();
         renderer->DrawTexture(toy2d::Rect{ toy2d::Vec{x, y}, toy2d::Size{200, 300} }, *texture1);

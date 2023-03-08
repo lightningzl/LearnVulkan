@@ -46,4 +46,14 @@ namespace toy2d
 		TextureManager::Instance().Destroy(texture);
 	}
 
+	void ResizeSwapchainImage(int w, int h)
+	{
+		auto& ctx = Context::GetInstance();
+		ctx.device.waitIdle();
+		ctx.swapchain.reset();
+		ctx.getSurface();
+		ctx.InitSwapchain(w, h);
+		ctx.swapchain->InitFramebuffers();
+	}
+
 }

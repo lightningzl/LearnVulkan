@@ -19,6 +19,7 @@ namespace toy2d {
 	{
 	public:
 		friend void Init(std::vector<const char*>& extensions, GetSurfaceCallback callback, int windowWidth, int windowHeight);
+		friend void ResizeSwapchainImage(int w, int h);
 
 		static void Init(std::vector<const char*>& extensions, GetSurfaceCallback callback);
 		static void Quit();
@@ -48,7 +49,7 @@ namespace toy2d {
 
 	private:
 		static Context* instance_;
-		vk::SurfaceKHR surface_;
+		vk::SurfaceKHR surface_ = nullptr;
 		GetSurfaceCallback getSurfaceCallback_ = nullptr;
 
 		Context(std::vector<const char*>& extensions, GetSurfaceCallback callback);
@@ -60,6 +61,7 @@ namespace toy2d {
 		void InitCommandPool();
 		void initShaderModules();
 		void initSampler();
+		void getSurface();
 
 		vk::Instance createInstance(std::vector<const char*>& extensions);
 		vk::PhysicalDevice pickPhyiscalDevice();

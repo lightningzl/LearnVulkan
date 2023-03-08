@@ -39,12 +39,7 @@ namespace toy2d {
 			exit(1);
 		}
 
-		surface_ = getSurfaceCallback_(instance);
-		if (!surface_)
-		{
-			std::cout << "create surface faild" << std::endl;
-			exit(1);
-		}
+		getSurface();
 
 		device = createDevice(surface_);
 		if (!device)
@@ -75,7 +70,7 @@ namespace toy2d {
 
 	void Context::InitGraphicsPipeline()
 	{
-		renderProcess->RecreateGraphicsPipeline(*shader);
+		renderProcess->CreateGraphicsPipeline(*shader);
 	}
 
 	void Context::InitCommandPool()
@@ -104,6 +99,16 @@ namespace toy2d {
 			.setCompareEnable(false)
 			.setMipmapMode(vk::SamplerMipmapMode::eLinear);
 		sampler = Context::GetInstance().device.createSampler(createInfo);
+	}
+
+	void Context::getSurface()
+	{
+		surface_ = getSurfaceCallback_(instance);
+		if (!surface_)
+		{
+			std::cout << "create surface faild" << std::endl;
+			exit(1);
+		}
 	}
 
 	void Context::InitRenderProcess()

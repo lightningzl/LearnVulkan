@@ -12,4 +12,5 @@ namespace toy2d
 	Renderer* GetRenderer();
 	Texture* LoadTexture(const std::string& filename);
 	void DestroyTexture(Texture* texture);
+	void ResizeSwapchainImage(int w, int h);
 }

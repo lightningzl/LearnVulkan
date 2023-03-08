@@ -9,7 +9,7 @@ namespace toy2d
 	RenderProcess::RenderProcess()
 	{
 		layout = createLayout();
-		renderPass = createRenderPass();
+		CreateRenderPass();
 		graphicsPipeline = nullptr;
 	}
 
@@ -21,21 +21,13 @@ namespace toy2d
 		device.destroyPipeline(graphicsPipeline);
 	}
 
-	void RenderProcess::RecreateGraphicsPipeline(const Shader& shader)
+	void RenderProcess::CreateGraphicsPipeline(const Shader& shader)
 	{
-		if (graphicsPipeline)
-		{
-			Context::GetInstance().device.destroyPipeline(graphicsPipeline);
-		}
 		graphicsPipeline = createGraphicsPipeline(shader);
 	}
 
-	void RenderProcess::RecreateRenderPass()
+	void RenderProcess::CreateRenderPass()
 	{
-		if (renderPass)
-		{
-			Context::GetInstance().device.destroyRenderPass(renderPass);
-		}
 		renderPass = createRenderPass();
 	}
 
@@ -123,6 +115,11 @@ namespace toy2d
 		blendInfo.setLogicOpEnable(false)
 			.setAttachments(attachState);
 
+		// dynamic changing state of pipeline
+		vk::PipelineDynamicStateCreateInfo dynamicState;
+		std::array states = { vk::DynamicState::eViewport, vk::DynamicState::eScissor };
+		dynamicState.setDynamicStates(states);
+
 		// 8.create graphics pipeline
 		createInfo.setPVertexInputState(&inputState)
 			.setPInputAssemblyState(&inputAsm)
@@ -133,6 +130,7 @@ namespace toy2d
 			.setPColorBlendState(&blendInfo)
 			.setRenderPass(renderPass)
 			.setLayout(layout);
+			//.setPDynamicState(&dynamicState);
 
 		auto result = Context::GetInstance().device.createGraphicsPipeline(nullptr, createInfo);
 		if (result.result != vk::Result::eSuccess)
