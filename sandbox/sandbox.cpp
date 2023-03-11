@@ -3,7 +3,7 @@
 #include <iostream>
 #include <vector>
 
-#include "toy2d/toy2d.hpp"
+#include "toy3d/toy3d.hpp"
 
 constexpr uint32_t windowWidth = 1024;
 constexpr uint32_t windowHeight = 720;
@@ -34,7 +34,7 @@ int main(int argc, char** argv) {
     //    std::cout << extension << std::endl;
     //}
 
-    toy2d::Init(extensions,
+    toy3d::Init(extensions,
         [&](vk::Instance instance) {
 			VkSurfaceKHR surface;
             if (!SDL_Vulkan_CreateSurface(window, instance, &surface))
@@ -44,14 +44,14 @@ int main(int argc, char** argv) {
 	        return surface;
 		}, 1024, 720);
 
-    auto* renderer = toy2d::GetRenderer();
+    auto* renderer = toy3d::GetRenderer();
 
     float x = 100, y = 100;
 
-    renderer->SetDrawColor(toy2d::Color{ 1, 1, 1 });
+    renderer->SetDrawColor(toy3d::Color{ 1, 1, 1 });
 
-    toy2d::Texture* texture1 = toy2d::LoadTexture("resources/role.png");
-    toy2d::Texture* texture2 = toy2d::LoadTexture("resources/texture.jpg");
+    toy3d::Texture* texture1 = toy3d::LoadTexture("resources/role.png");
+    toy3d::Texture* texture2 = toy3d::LoadTexture("resources/texture.jpg");
 
     while (!shouldClose) {
         while (SDL_PollEvent(&event)) {
@@ -73,34 +73,37 @@ int main(int argc, char** argv) {
 					y += 10;
 				}
 				if (event.key.keysym.sym == SDLK_0) {
-					renderer->SetDrawColor(toy2d::Color{ 1, 0, 0 });
+					renderer->SetDrawColor(toy3d::Color{ 1, 0, 0 });
 				}
 				if (event.key.keysym.sym == SDLK_1) {
-					renderer->SetDrawColor(toy2d::Color{ 0, 1, 0 });
+					renderer->SetDrawColor(toy3d::Color{ 0, 1, 0 });
 				}
 				if (event.key.keysym.sym == SDLK_2) {
-					renderer->SetDrawColor(toy2d::Color{ 0, 0, 1 });
+					renderer->SetDrawColor(toy3d::Color{ 0, 0, 1 });
 				}
 			}
             if (event.type == SDL_WINDOWEVENT)
             {
                 if (event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED)
                 {
-                    toy2d::ResizeSwapchainImage(event.window.data1, event.window.data2);
+                    toy3d::ResizeSwapchainImage(event.window.data1, event.window.data2);
                 }
             }
         }
         renderer->StartRender();
-        renderer->DrawRect(toy2d::Rect{ toy2d::Vec{x, y}, toy2d::Size{200, 300} }, *texture1);
-        renderer->DrawRect(toy2d::Rect{ toy2d::Vec{500, 100}, toy2d::Size{200, 300} }, *texture2);
-        renderer->DrawLine(toy2d::Vec{ 0, 0 }, toy2d::Vec{ windowWidth, windowHeight });
+        renderer->SetDrawColor({ 1 ,0 ,0 });
+        renderer->DrawRect(toy3d::Rect{ toy3d::Vec2d{x, y}, toy3d::Size{200, 300} }, *texture1);
+        renderer->SetDrawColor({ 0 ,1 ,0 });
+        renderer->DrawRect(toy3d::Rect{ toy3d::Vec2d{500, 100}, toy3d::Size{200, 300} }, *texture2);
+        renderer->SetDrawColor({ 0 ,0 ,1 });
+        renderer->DrawLine(toy3d::Vec2d{ 0, 0 }, toy3d::Vec2d{ windowWidth, windowHeight });
         renderer->EndRender();
     }
 
-    toy2d::DestroyTexture(texture1);
-    toy2d::DestroyTexture(texture2);
+    toy3d::DestroyTexture(texture1);
+    toy3d::DestroyTexture(texture2);
 
-    toy2d::Quit();
+    toy3d::Quit();
 
     SDL_DestroyWindow(window);
     SDL_Quit();
