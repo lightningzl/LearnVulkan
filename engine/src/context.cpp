@@ -1,5 +1,6 @@
 #include "toy3d/context.hpp"
 #include "toy3d/shader.hpp"
+#include "toy3d/render_system.h"
 
 namespace toy3d {
 
@@ -50,6 +51,9 @@ namespace toy3d {
 
 		graphcisQueue = device.getQueue(queueInfo.graphicsIndex.value(), 0);
 		presentQueue = device.getQueue(queueInfo.presentIndex.value(), 0);
+
+		renderSystem = std::make_shared<RenderSystem>();
+		renderSystem->initialize();
 	}
 
 	Context::~Context() 

@@ -6,8 +6,6 @@
 
 namespace toy3d
 {
-	class Texture;
-
 	class Mesh
 	{
 	public:

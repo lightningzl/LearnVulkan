@@ -11,7 +11,7 @@ source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}" FILES ${HEADER_FILES} ${SOURCE_F
 
 add_library(toy3d STATIC ${HEADER_FILES} ${SOURCE_FILES})
 
-target_include_directories(toy3d PUBLIC . ./thirdparty)
+target_include_directories(toy3d PUBLIC . ./thirdparty ./toy3d ./toy3d/rhi ./toy3d/passes)
 target_link_libraries(toy3d PUBLIC Vulkan::Vulkan)
 target_compile_features(toy3d PUBLIC cxx_std_17)
 

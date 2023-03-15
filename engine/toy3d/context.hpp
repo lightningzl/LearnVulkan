@@ -47,6 +47,8 @@ namespace toy3d {
 		std::unique_ptr<CommandManager> commandManager;
 		std::unique_ptr<Shader> shader;
 
+		std::shared_ptr<class RenderSystem> renderSystem;
+
 	private:
 		static Context* instance_;
 		vk::SurfaceKHR surface_ = nullptr;
